@@ -1,0 +1,77 @@
+:root {
+  --color-bg: #f4f6fb;
+  --color-bg-subtle: #fafbff;
+  --color-surface: #ffffff;
+  --color-border: #e2e5f1;
+  --color-text: #33364a;
+  --color-text-muted: #6b7080;
+  --color-heading: #1a1c2e;
+
+  --color-blue: #2f5fe0;
+  --color-blue-dark: #1e3fb0;
+  --color-blue-light: #eef2ff;
+  --color-purple: #7c3aed;
+  --color-purple-bg: rgba(124, 58, 237, 0.08);
+  --color-purple-border: rgba(124, 58, 237, 0.2);
+
+  --color-error: #b91c1c;
+  --color-error-bg: rgba(185, 28, 28, 0.08);
+
+  --color-success: #15803d;
+  --color-success-bg: rgba(21, 128, 61, 0.08);
+  --color-success-border: rgba(21, 128, 61, 0.25);
+
+  --gradient-primary: linear-gradient(135deg, var(--color-blue), var(--color-purple));
+
+  --shadow-card: 0 4px 14px rgba(30, 41, 82, 0.06);
+  --shadow-soft: 0 10px 30px rgba(30, 41, 82, 0.08);
+
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+
+  --font-sans: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--color-heading);
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+button {
+  font-family: inherit;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
