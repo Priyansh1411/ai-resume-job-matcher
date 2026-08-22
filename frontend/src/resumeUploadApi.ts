@@ -1,3 +1,5 @@
+import { extractErrorMessage } from './apiErrors'
+
 export type ResumeUploadResult = {
   id: string
   originalFilename: string
@@ -20,13 +22,6 @@ function isResumeUploadResult(value: unknown): value is ResumeUploadResult {
     typeof candidate.fileSizeBytes === 'number' &&
     typeof candidate.processingStatus === 'string'
   )
-}
-
-function extractErrorMessage(value: unknown): string | null {
-  if (value && typeof value === 'object' && typeof (value as { error?: unknown }).error === 'string') {
-    return (value as { error: string }).error
-  }
-  return null
 }
 
 export async function uploadResume(file: File): Promise<ResumeUploadResult> {

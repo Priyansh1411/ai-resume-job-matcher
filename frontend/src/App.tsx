@@ -2,11 +2,15 @@ import { useState } from 'react'
 import ResumeUploadCard from './ResumeUploadCard'
 import JobDescriptionCard, { MIN_JOB_DESCRIPTION_CHARACTERS } from './JobDescriptionCard'
 import UploadStatusPanel from './UploadStatusPanel'
+import ResumeProfilePanel from './ResumeProfilePanel'
 import { ResumeUploadError, uploadResume } from './resumeUploadApi'
 import type { ResumeUploadResult } from './resumeUploadApi'
+import { ResumeProfileError, fetchResumeProfile } from './resumeProfileApi'
+import type { ResumeProfileResult } from './resumeProfileApi'
 import './App.css'
 
 type UploadStatus = 'idle' | 'uploading' | 'success' | 'error'
+type ProfileStatus = 'idle' | 'loading' | 'success' | 'error'
 
 function App() {
   const [resumeFile, setResumeFile] = useState<File | null>(null)
@@ -14,6 +18,9 @@ function App() {
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle')
   const [uploadResult, setUploadResult] = useState<ResumeUploadResult | null>(null)
   const [uploadErrorMessage, setUploadErrorMessage] = useState<string | null>(null)
+  const [profileStatus, setProfileStatus] = useState<ProfileStatus>('idle')
+  const [profileResult, setProfileResult] = useState<ResumeProfileResult | null>(null)
+  const [profileErrorMessage, setProfileErrorMessage] = useState<string | null>(null)
 
   const isResumeValid = resumeFile !== null
   const isJobDescriptionValid =
@@ -25,6 +32,9 @@ function App() {
     setUploadStatus('idle')
     setUploadResult(null)
     setUploadErrorMessage(null)
+    setProfileStatus('idle')
+    setProfileResult(null)
+    setProfileErrorMessage(null)
   }
 
   async function handleAnalyzeClick() {
@@ -34,11 +44,28 @@ function App() {
 
     setUploadStatus('uploading')
     setUploadErrorMessage(null)
+    setProfileStatus('idle')
+    setProfileResult(null)
+    setProfileErrorMessage(null)
 
     try {
       const result = await uploadResume(resumeFile)
       setUploadResult(result)
       setUploadStatus('success')
+
+      setProfileStatus('loading')
+      try {
+        const profile = await fetchResumeProfile(result.id)
+        setProfileResult(profile)
+        setProfileStatus('success')
+      } catch (profileErr) {
+        const profileMessage =
+          profileErr instanceof ResumeProfileError
+            ? profileErr.message
+            : 'Could not load the resume profile.'
+        setProfileErrorMessage(profileMessage)
+        setProfileStatus('error')
+      }
     } catch (err) {
       const message =
         err instanceof ResumeUploadError ? err.message : 'Upload failed. Please try again.'
@@ -101,6 +128,16 @@ function App() {
               status={uploadStatus}
               result={uploadResult}
               errorMessage={uploadErrorMessage}
+            />
+          </div>
+        )}
+
+        {profileStatus !== 'idle' && (
+          <div className="status-panel-wrapper">
+            <ResumeProfilePanel
+              status={profileStatus}
+              result={profileResult}
+              errorMessage={profileErrorMessage}
             />
           </div>
         )}
