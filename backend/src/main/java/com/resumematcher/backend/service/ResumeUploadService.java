@@ -2,7 +2,9 @@ package com.resumematcher.backend.service;
 
 import java.util.Set;
 
+import com.resumematcher.backend.entity.ProcessingStatus;
 import com.resumematcher.backend.entity.Resume;
+import com.resumematcher.backend.extraction.ResumeTextExtractionService;
 import com.resumematcher.backend.repository.ResumeRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -19,9 +21,12 @@ public class ResumeUploadService {
 	);
 
 	private final ResumeRepository resumeRepository;
+	private final ResumeTextExtractionService resumeTextExtractionService;
 
-	public ResumeUploadService(ResumeRepository resumeRepository) {
+	public ResumeUploadService(ResumeRepository resumeRepository,
+			ResumeTextExtractionService resumeTextExtractionService) {
 		this.resumeRepository = resumeRepository;
+		this.resumeTextExtractionService = resumeTextExtractionService;
 	}
 
 	public Resume upload(MultipartFile file) {
@@ -53,7 +58,28 @@ public class ResumeUploadService {
 		resume.setContentType(contentType);
 		resume.setFileSizeBytes(file.getSize());
 
-		return resumeRepository.save(resume);
+		Resume savedResume = resumeRepository.save(resume);
+
+		extractAndStoreText(savedResume, file, contentType);
+
+		return savedResume;
+	}
+
+	private void extractAndStoreText(Resume resume, MultipartFile file, String contentType) {
+		resume.setProcessingStatus(ProcessingStatus.PROCESSING);
+		resumeRepository.save(resume);
+
+		try {
+			byte[] fileBytes = file.getBytes();
+			String extractedText = resumeTextExtractionService.extractText(fileBytes, contentType);
+			resume.setExtractedText(extractedText);
+			resume.setProcessingStatus(ProcessingStatus.COMPLETED);
+		} catch (Exception e) {
+			resume.setExtractedText(null);
+			resume.setProcessingStatus(ProcessingStatus.FAILED);
+		}
+
+		resumeRepository.save(resume);
 	}
 
 }

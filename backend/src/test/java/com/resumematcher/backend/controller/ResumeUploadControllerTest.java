@@ -9,6 +9,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumematcher.backend.entity.ProcessingStatus;
 import com.resumematcher.backend.entity.Resume;
 import com.resumematcher.backend.repository.ResumeRepository;
+import com.resumematcher.backend.testsupport.AbstractMySqlIntegrationTest;
+import com.resumematcher.backend.testsupport.SyntheticDocuments;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,7 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
-class ResumeUploadControllerTest {
+class ResumeUploadControllerTest extends AbstractMySqlIntegrationTest {
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -35,7 +37,7 @@ class ResumeUploadControllerTest {
 
 	@Test
 	void uploadsPdfResumeSuccessfully() throws Exception {
-		byte[] content = "pdf content".getBytes();
+		byte[] content = SyntheticDocuments.createSamplePdf("Synthetic resume content for testing");
 		MockMultipartFile file = new MockMultipartFile("file", "resume.pdf", "application/pdf", content);
 
 		String responseBody = mockMvc.perform(MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file))
@@ -48,20 +50,21 @@ class ResumeUploadControllerTest {
 		assertThat(json.get("originalFilename").asText()).isEqualTo("resume.pdf");
 		assertThat(json.get("contentType").asText()).isEqualTo("application/pdf");
 		assertThat(json.get("fileSizeBytes").asLong()).isEqualTo(content.length);
-		assertThat(json.get("processingStatus").asText()).isEqualTo("UPLOADED");
+		assertThat(json.get("processingStatus").asText()).isEqualTo("COMPLETED");
+		assertThat(json.has("extractedText")).isFalse();
 
 		Optional<Resume> saved = resumeRepository.findById(json.get("id").asText());
 		assertThat(saved).isPresent();
 		assertThat(saved.get().getOriginalFilename()).isEqualTo("resume.pdf");
 		assertThat(saved.get().getContentType()).isEqualTo("application/pdf");
 		assertThat(saved.get().getFileSizeBytes()).isEqualTo(content.length);
-		assertThat(saved.get().getProcessingStatus()).isEqualTo(ProcessingStatus.UPLOADED);
-		assertThat(saved.get().getExtractedText()).isNull();
+		assertThat(saved.get().getProcessingStatus()).isEqualTo(ProcessingStatus.COMPLETED);
+		assertThat(saved.get().getExtractedText()).isNotBlank();
 	}
 
 	@Test
 	void uploadsDocxResumeSuccessfully() throws Exception {
-		byte[] content = "docx content".getBytes();
+		byte[] content = SyntheticDocuments.createSampleDocx("Synthetic resume content for testing");
 		MockMultipartFile file = new MockMultipartFile(
 				"file", "resume.docx",
 				"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -77,10 +80,55 @@ class ResumeUploadControllerTest {
 		assertThat(json.get("contentType").asText())
 				.isEqualTo("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
 		assertThat(json.get("fileSizeBytes").asLong()).isEqualTo(content.length);
-		assertThat(json.get("processingStatus").asText()).isEqualTo("UPLOADED");
+		assertThat(json.get("processingStatus").asText()).isEqualTo("COMPLETED");
+		assertThat(json.has("extractedText")).isFalse();
 
 		Optional<Resume> saved = resumeRepository.findById(json.get("id").asText());
 		assertThat(saved).isPresent();
+		assertThat(saved.get().getProcessingStatus()).isEqualTo(ProcessingStatus.COMPLETED);
+		assertThat(saved.get().getExtractedText()).isNotBlank();
+	}
+
+	@Test
+	void uploadWithCorruptPdfBytesResultsInFailedExtractionStatus() throws Exception {
+		byte[] corruptContent = "this is not a real pdf file".getBytes();
+		MockMultipartFile file = new MockMultipartFile("file", "resume.pdf", "application/pdf", corruptContent);
+
+		String responseBody = mockMvc.perform(MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file))
+				.andExpect(MockMvcResultMatchers.status().isCreated())
+				.andReturn().getResponse().getContentAsString();
+
+		JsonNode json = objectMapper.readTree(responseBody);
+
+		assertThat(json.get("processingStatus").asText()).isEqualTo("FAILED");
+		assertThat(json.has("extractedText")).isFalse();
+
+		Optional<Resume> saved = resumeRepository.findById(json.get("id").asText());
+		assertThat(saved).isPresent();
+		assertThat(saved.get().getProcessingStatus()).isEqualTo(ProcessingStatus.FAILED);
+		assertThat(saved.get().getExtractedText()).isNull();
+	}
+
+	@Test
+	void uploadWithCorruptDocxBytesResultsInFailedExtractionStatus() throws Exception {
+		byte[] corruptContent = "this is not a real docx file".getBytes();
+		MockMultipartFile file = new MockMultipartFile(
+				"file", "resume.docx",
+				"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+				corruptContent);
+
+		String responseBody = mockMvc.perform(MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file))
+				.andExpect(MockMvcResultMatchers.status().isCreated())
+				.andReturn().getResponse().getContentAsString();
+
+		JsonNode json = objectMapper.readTree(responseBody);
+
+		assertThat(json.get("processingStatus").asText()).isEqualTo("FAILED");
+		assertThat(json.has("extractedText")).isFalse();
+
+		Optional<Resume> saved = resumeRepository.findById(json.get("id").asText());
+		assertThat(saved).isPresent();
+		assertThat(saved.get().getProcessingStatus()).isEqualTo(ProcessingStatus.FAILED);
 		assertThat(saved.get().getExtractedText()).isNull();
 	}
 

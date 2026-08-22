@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import com.resumematcher.backend.entity.ProcessingStatus;
 import com.resumematcher.backend.entity.Resume;
+import com.resumematcher.backend.testsupport.AbstractMySqlIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -13,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
 @Transactional
-class ResumeRepositoryTest {
+class ResumeRepositoryTest extends AbstractMySqlIntegrationTest {
 
 	@Autowired
 	private ResumeRepository resumeRepository;
