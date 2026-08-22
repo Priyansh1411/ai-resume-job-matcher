@@ -25,7 +25,10 @@ public final class SyntheticDocuments {
 				contentStream.beginText();
 				contentStream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12);
 				contentStream.newLineAtOffset(50, 700);
-				contentStream.showText(text);
+				for (String line : text.split("\n")) {
+					contentStream.showText(line);
+					contentStream.newLineAtOffset(0, -14);
+				}
 				contentStream.endText();
 			}
 			ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
