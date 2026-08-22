@@ -1,6 +1,5 @@
 package com.resumematcher.backend.profile;
 
-import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -18,22 +17,18 @@ public class RuleBasedResumeProfileExtractor implements ResumeProfileExtractor {
 
 	private static final int MAX_NAME_LINE_LENGTH = 80;
 
-	private static final Set<String> KNOWN_SKILLS = Set.of(
-			"java", "python", "javascript", "typescript", "c++", "c#", "go", "rust", "kotlin", "swift",
-			"spring", "spring boot", "react", "angular", "vue", "node.js", "django", "flask",
-			"mysql", "postgresql", "mongodb", "redis", "oracle",
-			"docker", "kubernetes", "aws", "azure", "gcp", "terraform", "jenkins", "git", "ci/cd",
-			"rest", "graphql", "microservices", "html", "css", "sql",
-			"machine learning", "data analysis", "project management", "agile", "scrum",
-			"communication", "leadership", "problem solving", "teamwork"
-	);
+	private final SkillKeywordMatcher skillKeywordMatcher;
+
+	public RuleBasedResumeProfileExtractor(SkillKeywordMatcher skillKeywordMatcher) {
+		this.skillKeywordMatcher = skillKeywordMatcher;
+	}
 
 	@Override
 	public ExtractedProfile extract(String resumeText) {
 		String email = firstMatch(EMAIL_PATTERN, resumeText);
 		String phone = firstMatch(PHONE_PATTERN, resumeText);
 		String fullName = guessFullName(resumeText);
-		Set<String> skills = findSkills(resumeText);
+		Set<String> skills = skillKeywordMatcher.findSkills(resumeText);
 
 		return new ExtractedProfile(fullName, email, phone, skills);
 	}
@@ -55,20 +50,6 @@ public class RuleBasedResumeProfileExtractor implements ResumeProfileExtractor {
 			return trimmedLine;
 		}
 		return null;
-	}
-
-	private Set<String> findSkills(String text) {
-		String lowerCaseText = text.toLowerCase();
-		Set<String> matchedSkills = new LinkedHashSet<>();
-
-		for (String skill : KNOWN_SKILLS) {
-			Pattern skillPattern = Pattern.compile("\\b" + Pattern.quote(skill) + "\\b", Pattern.CASE_INSENSITIVE);
-			if (skillPattern.matcher(lowerCaseText).find()) {
-				matchedSkills.add(skill);
-			}
-		}
-
-		return matchedSkills;
 	}
 
 }

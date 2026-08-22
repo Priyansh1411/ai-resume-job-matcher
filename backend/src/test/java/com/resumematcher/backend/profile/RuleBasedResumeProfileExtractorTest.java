@@ -6,7 +6,8 @@ import org.junit.jupiter.api.Test;
 
 class RuleBasedResumeProfileExtractorTest {
 
-	private final RuleBasedResumeProfileExtractor extractor = new RuleBasedResumeProfileExtractor();
+	private final RuleBasedResumeProfileExtractor extractor =
+			new RuleBasedResumeProfileExtractor(new SkillKeywordMatcher());
 
 	@Test
 	void extractsNameEmailPhoneAndSkillsFromResumeText() {

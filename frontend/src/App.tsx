@@ -3,14 +3,18 @@ import ResumeUploadCard from './ResumeUploadCard'
 import JobDescriptionCard, { MIN_JOB_DESCRIPTION_CHARACTERS } from './JobDescriptionCard'
 import UploadStatusPanel from './UploadStatusPanel'
 import ResumeProfilePanel from './ResumeProfilePanel'
+import MatchResultPanel from './MatchResultPanel'
 import { ResumeUploadError, uploadResume } from './resumeUploadApi'
 import type { ResumeUploadResult } from './resumeUploadApi'
 import { ResumeProfileError, fetchResumeProfile } from './resumeProfileApi'
 import type { ResumeProfileResult } from './resumeProfileApi'
+import { ResumeMatchError, fetchResumeMatch } from './resumeMatchApi'
+import type { ResumeMatchResult } from './resumeMatchApi'
 import './App.css'
 
 type UploadStatus = 'idle' | 'uploading' | 'success' | 'error'
 type ProfileStatus = 'idle' | 'loading' | 'success' | 'error'
+type MatchStatus = 'idle' | 'loading' | 'success' | 'error'
 
 function App() {
   const [resumeFile, setResumeFile] = useState<File | null>(null)
@@ -21,6 +25,9 @@ function App() {
   const [profileStatus, setProfileStatus] = useState<ProfileStatus>('idle')
   const [profileResult, setProfileResult] = useState<ResumeProfileResult | null>(null)
   const [profileErrorMessage, setProfileErrorMessage] = useState<string | null>(null)
+  const [matchStatus, setMatchStatus] = useState<MatchStatus>('idle')
+  const [matchResult, setMatchResult] = useState<ResumeMatchResult | null>(null)
+  const [matchErrorMessage, setMatchErrorMessage] = useState<string | null>(null)
 
   const isResumeValid = resumeFile !== null
   const isJobDescriptionValid =
@@ -35,6 +42,9 @@ function App() {
     setProfileStatus('idle')
     setProfileResult(null)
     setProfileErrorMessage(null)
+    setMatchStatus('idle')
+    setMatchResult(null)
+    setMatchErrorMessage(null)
   }
 
   async function handleAnalyzeClick() {
@@ -47,6 +57,9 @@ function App() {
     setProfileStatus('idle')
     setProfileResult(null)
     setProfileErrorMessage(null)
+    setMatchStatus('idle')
+    setMatchResult(null)
+    setMatchErrorMessage(null)
 
     try {
       const result = await uploadResume(resumeFile)
@@ -65,6 +78,20 @@ function App() {
             : 'Could not load the resume profile.'
         setProfileErrorMessage(profileMessage)
         setProfileStatus('error')
+      }
+
+      setMatchStatus('loading')
+      try {
+        const match = await fetchResumeMatch(result.id, jobDescription)
+        setMatchResult(match)
+        setMatchStatus('success')
+      } catch (matchErr) {
+        const matchMessage =
+          matchErr instanceof ResumeMatchError
+            ? matchErr.message
+            : 'Could not calculate the match score.'
+        setMatchErrorMessage(matchMessage)
+        setMatchStatus('error')
       }
     } catch (err) {
       const message =
@@ -138,6 +165,16 @@ function App() {
               status={profileStatus}
               result={profileResult}
               errorMessage={profileErrorMessage}
+            />
+          </div>
+        )}
+
+        {matchStatus !== 'idle' && (
+          <div className="status-panel-wrapper">
+            <MatchResultPanel
+              status={matchStatus}
+              result={matchResult}
+              errorMessage={matchErrorMessage}
             />
           </div>
         )}
