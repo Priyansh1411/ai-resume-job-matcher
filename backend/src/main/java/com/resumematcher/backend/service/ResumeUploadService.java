@@ -5,6 +5,7 @@ import java.util.Set;
 import com.resumematcher.backend.entity.ProcessingStatus;
 import com.resumematcher.backend.entity.Resume;
 import com.resumematcher.backend.extraction.ResumeTextExtractionService;
+import com.resumematcher.backend.profile.ResumeProfileExtractionService;
 import com.resumematcher.backend.repository.ResumeRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -22,11 +23,14 @@ public class ResumeUploadService {
 
 	private final ResumeRepository resumeRepository;
 	private final ResumeTextExtractionService resumeTextExtractionService;
+	private final ResumeProfileExtractionService resumeProfileExtractionService;
 
 	public ResumeUploadService(ResumeRepository resumeRepository,
-			ResumeTextExtractionService resumeTextExtractionService) {
+			ResumeTextExtractionService resumeTextExtractionService,
+			ResumeProfileExtractionService resumeProfileExtractionService) {
 		this.resumeRepository = resumeRepository;
 		this.resumeTextExtractionService = resumeTextExtractionService;
+		this.resumeProfileExtractionService = resumeProfileExtractionService;
 	}
 
 	public Resume upload(MultipartFile file) {
@@ -80,6 +84,10 @@ public class ResumeUploadService {
 		}
 
 		resumeRepository.save(resume);
+
+		if (resume.getProcessingStatus() == ProcessingStatus.COMPLETED) {
+			resumeProfileExtractionService.extractAndStoreProfile(resume.getId(), resume.getExtractedText());
+		}
 	}
 
 }
