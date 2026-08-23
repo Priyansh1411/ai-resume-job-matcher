@@ -4,6 +4,6 @@ import java.util.Set;
 
 public interface ResumeJobMatcher {
 
-	MatchResult match(Set<String> resumeSkills, String jobDescriptionText);
+	MatchResult match(Set<String> resumeSkills, String resumeText, String jobDescriptionText);
 
 }

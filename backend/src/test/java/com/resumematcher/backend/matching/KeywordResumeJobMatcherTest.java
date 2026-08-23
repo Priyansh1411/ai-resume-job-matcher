@@ -18,7 +18,7 @@ class KeywordResumeJobMatcherTest {
 		Set<String> resumeSkills = Set.of("java", "docker", "mysql");
 		String jobDescriptionText = "Looking for someone skilled in Java, Docker, Kubernetes and AWS.";
 
-		MatchResult result = matcher.match(resumeSkills, jobDescriptionText);
+		MatchResult result = matcher.match(resumeSkills, "irrelevant resume text", jobDescriptionText);
 
 		assertThat(result.matchedSkills()).containsExactlyInAnyOrder("java", "docker");
 		assertThat(result.missingSkills()).containsExactlyInAnyOrder("kubernetes", "aws");
@@ -30,7 +30,7 @@ class KeywordResumeJobMatcherTest {
 		Set<String> resumeSkills = Set.of("java", "react");
 		String jobDescriptionText = "We need a developer who knows Java and React.";
 
-		MatchResult result = matcher.match(resumeSkills, jobDescriptionText);
+		MatchResult result = matcher.match(resumeSkills, "irrelevant resume text", jobDescriptionText);
 
 		assertThat(result.matchScorePercentage()).isEqualTo(100);
 		assertThat(result.missingSkills()).isEmpty();
@@ -41,7 +41,7 @@ class KeywordResumeJobMatcherTest {
 		Set<String> resumeSkills = Set.of("java", "docker");
 		String jobDescriptionText = "This posting mentions nothing recognizable at all.";
 
-		MatchResult result = matcher.match(resumeSkills, jobDescriptionText);
+		MatchResult result = matcher.match(resumeSkills, "irrelevant resume text", jobDescriptionText);
 
 		assertThat(result.matchScorePercentage()).isZero();
 		assertThat(result.matchedSkills()).isEmpty();
@@ -59,7 +59,7 @@ class KeywordResumeJobMatcherTest {
 				Kubernetes, AWS
 				""";
 
-		MatchResult result = matcher.match(resumeSkills, jobDescriptionText);
+		MatchResult result = matcher.match(resumeSkills, "irrelevant resume text", jobDescriptionText);
 
 		// Flat coverage would be 1 matched / 4 total = 25%. Weighting the matched
 		// required skill (java) at 2x pulls the score above flat coverage.
@@ -84,7 +84,7 @@ class KeywordResumeJobMatcherTest {
 				AWS
 				""";
 
-		MatchResult result = matcher.match(resumeSkills, jobDescriptionText);
+		MatchResult result = matcher.match(resumeSkills, "irrelevant resume text", jobDescriptionText);
 
 		// Flat coverage would be 1 matched / 2 total = 50%. Weighting the matched
 		// preferred skill (aws) at only 1x pulls the score below flat coverage.
@@ -103,7 +103,7 @@ class KeywordResumeJobMatcherTest {
 		Set<String> resumeSkills = Set.of("java", "docker");
 		String jobDescriptionText = "Looking for someone skilled in Java, Docker, Kubernetes and AWS.";
 
-		MatchResult result = matcher.match(resumeSkills, jobDescriptionText);
+		MatchResult result = matcher.match(resumeSkills, "irrelevant resume text", jobDescriptionText);
 
 		// With no headers, every skill defaults to required, so weighting has no
 		// differentiating effect and the score matches plain coverage: 2/4 = 50%.
@@ -111,6 +111,19 @@ class KeywordResumeJobMatcherTest {
 		assertThat(result.matchedRequiredSkills()).containsExactlyInAnyOrder("java", "docker");
 		assertThat(result.matchedPreferredSkills()).isEmpty();
 		assertThat(result.missingPreferredSkills()).isEmpty();
+	}
+
+	@Test
+	void ignoresResumeTextEntirelyAndOnlyUsesTheSkillSet() {
+		Set<String> resumeSkills = Set.of("java");
+		String jobDescriptionText = "We need a developer who knows Java and React.";
+
+		MatchResult withNullResumeText = matcher.match(resumeSkills, null, jobDescriptionText);
+		MatchResult withUnrelatedResumeText = matcher.match(resumeSkills, "completely unrelated text", jobDescriptionText);
+
+		assertThat(withNullResumeText.matchScorePercentage())
+				.isEqualTo(withUnrelatedResumeText.matchScorePercentage());
+		assertThat(withNullResumeText.matchedSkills()).isEqualTo(withUnrelatedResumeText.matchedSkills());
 	}
 
 }

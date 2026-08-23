@@ -18,7 +18,9 @@ public class KeywordResumeJobMatcher implements ResumeJobMatcher {
 	}
 
 	@Override
-	public MatchResult match(Set<String> resumeSkills, String jobDescriptionText) {
+	public MatchResult match(Set<String> resumeSkills, String resumeText, String jobDescriptionText) {
+		// resumeText is intentionally unused: this matcher only reasons about the
+		// already-extracted skill set, never the raw resume narrative.
 		JobDescriptionSkills jobDescriptionSkills = jobDescriptionRequirementParser.parse(jobDescriptionText);
 		Set<String> requiredSkills = jobDescriptionSkills.requiredSkills();
 		Set<String> preferredSkills = jobDescriptionSkills.preferredSkills();

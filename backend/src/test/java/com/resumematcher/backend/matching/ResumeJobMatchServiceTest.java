@@ -35,12 +35,13 @@ class ResumeJobMatchServiceTest {
 	void delegatesToMatcherWithResumeSkillsWhenResumeIsCompleted() {
 		Resume resume = new Resume();
 		resume.setProcessingStatus(ProcessingStatus.COMPLETED);
+		resume.setExtractedText("resume narrative text");
 
 		when(resumeRepository.findById("resume-1")).thenReturn(Optional.of(resume));
 		when(resumeSkillRepository.findByResumeId("resume-1")).thenReturn(List.of(
 				new ResumeSkill("resume-1", "java"),
 				new ResumeSkill("resume-1", "docker")));
-		when(resumeJobMatcher.match(eq(Set.of("java", "docker")), eq("job text")))
+		when(resumeJobMatcher.match(eq(Set.of("java", "docker")), eq("resume narrative text"), eq("job text")))
 				.thenReturn(new MatchResult(80, Set.of("java"), Set.of("aws"),
 						Set.of("java"), Set.of("aws"), Set.of(), Set.of()));
 

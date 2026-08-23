@@ -38,7 +38,7 @@ public class ResumeJobMatchService {
 				.map(ResumeSkill::getSkillName)
 				.collect(Collectors.toSet());
 
-		return resumeJobMatcher.match(resumeSkillNames, jobDescriptionText);
+		return resumeJobMatcher.match(resumeSkillNames, resume.getExtractedText(), jobDescriptionText);
 	}
 
 }
