@@ -4,6 +4,10 @@ export type ResumeMatchResult = {
   matchScorePercentage: number
   matchedSkills: string[]
   missingSkills: string[]
+  matchedRequiredSkills: string[]
+  missingRequiredSkills: string[]
+  matchedPreferredSkills: string[]
+  missingPreferredSkills: string[]
 }
 
 export class ResumeMatchError extends Error {}
@@ -16,7 +20,11 @@ function isResumeMatchResult(value: unknown): value is ResumeMatchResult {
   return (
     typeof candidate.matchScorePercentage === 'number' &&
     Array.isArray(candidate.matchedSkills) &&
-    Array.isArray(candidate.missingSkills)
+    Array.isArray(candidate.missingSkills) &&
+    Array.isArray(candidate.matchedRequiredSkills) &&
+    Array.isArray(candidate.missingRequiredSkills) &&
+    Array.isArray(candidate.matchedPreferredSkills) &&
+    Array.isArray(candidate.missingPreferredSkills)
   )
 }
 

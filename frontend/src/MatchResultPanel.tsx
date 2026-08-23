@@ -6,6 +6,28 @@ type MatchResultPanelProps = {
   errorMessage: string | null
 }
 
+type SkillChipListProps = {
+  skills: string[]
+  missing?: boolean
+  emptyMessage: string
+}
+
+function SkillChipList({ skills, missing, emptyMessage }: SkillChipListProps) {
+  if (skills.length === 0) {
+    return <span className="dropzone__hint">{emptyMessage}</span>
+  }
+
+  return (
+    <div className="skill-chip-list">
+      {skills.map((skill) => (
+        <span className={missing ? 'skill-chip skill-chip--missing' : 'skill-chip'} key={skill}>
+          {skill}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 function MatchResultPanel({ status, result, errorMessage }: MatchResultPanelProps) {
   if (status === 'loading') {
     return (
@@ -21,33 +43,45 @@ function MatchResultPanel({ status, result, errorMessage }: MatchResultPanelProp
         <p className="status-panel__title">Match Results</p>
         <p className="match-score">{result.matchScorePercentage}% match</p>
 
-        <div className="match-skill-group">
-          <p className="match-skill-group__label">Matched skills</p>
-          <div className="skill-chip-list">
-            {result.matchedSkills.length > 0 ? (
-              result.matchedSkills.map((skill) => (
-                <span className="skill-chip" key={skill}>
-                  {skill}
-                </span>
-              ))
-            ) : (
-              <span className="dropzone__hint">No matched skills</span>
-            )}
+        <div className="match-skill-section">
+          <h3 className="match-skill-section__title">Required Skills</h3>
+
+          <div className="match-skill-group">
+            <p className="match-skill-group__label">Matched</p>
+            <SkillChipList
+              skills={result.matchedRequiredSkills}
+              emptyMessage="No required skills matched"
+            />
+          </div>
+
+          <div className="match-skill-group">
+            <p className="match-skill-group__label">Missing</p>
+            <SkillChipList
+              skills={result.missingRequiredSkills}
+              missing
+              emptyMessage="No required skills missing"
+            />
           </div>
         </div>
 
-        <div className="match-skill-group">
-          <p className="match-skill-group__label">Missing skills</p>
-          <div className="skill-chip-list">
-            {result.missingSkills.length > 0 ? (
-              result.missingSkills.map((skill) => (
-                <span className="skill-chip skill-chip--missing" key={skill}>
-                  {skill}
-                </span>
-              ))
-            ) : (
-              <span className="dropzone__hint">No missing skills</span>
-            )}
+        <div className="match-skill-section">
+          <h3 className="match-skill-section__title">Preferred Skills</h3>
+
+          <div className="match-skill-group">
+            <p className="match-skill-group__label">Matched</p>
+            <SkillChipList
+              skills={result.matchedPreferredSkills}
+              emptyMessage="No preferred skills matched"
+            />
+          </div>
+
+          <div className="match-skill-group">
+            <p className="match-skill-group__label">Missing</p>
+            <SkillChipList
+              skills={result.missingPreferredSkills}
+              missing
+              emptyMessage="No preferred skills missing"
+            />
           </div>
         </div>
       </div>

@@ -373,8 +373,19 @@
   color: var(--color-heading);
 }
 
+.match-skill-section {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+}
+
+.match-skill-section__title {
+  font-size: 15px;
+  margin: 0;
+}
+
 .match-skill-group {
-  margin-top: 20px;
+  margin-top: 16px;
 }
 
 .match-skill-group__label {
