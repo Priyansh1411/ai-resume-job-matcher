@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Set;
 
 import com.resumematcher.backend.profile.SkillDictionary;
@@ -24,8 +25,8 @@ class EmbeddingResumeJobMatcherTest {
 
 	@Test
 	void scoresUsingCosineSimilarityOfResumeAndJobDescriptionEmbeddings() {
-		when(embeddingClient.embed("resume narrative")).thenReturn(new float[] { 1f, 0f });
-		when(embeddingClient.embed("job description text")).thenReturn(new float[] { 1f, 0f });
+		when(embeddingClient.embed(List.of("resume narrative", "job description text")))
+				.thenReturn(List.of(new float[] { 1f, 0f }, new float[] { 1f, 0f }));
 
 		EmbeddingResumeJobMatcher matcher = new EmbeddingResumeJobMatcher(embeddingClient, keywordResumeJobMatcher);
 
@@ -37,8 +38,8 @@ class EmbeddingResumeJobMatcherTest {
 
 	@Test
 	void scoresLowerWhenEmbeddingsAreDissimilar() {
-		when(embeddingClient.embed("resume narrative")).thenReturn(new float[] { 1f, 0f });
-		when(embeddingClient.embed("job description text")).thenReturn(new float[] { 0f, 1f });
+		when(embeddingClient.embed(List.of("resume narrative", "job description text")))
+				.thenReturn(List.of(new float[] { 1f, 0f }, new float[] { 0f, 1f }));
 
 		EmbeddingResumeJobMatcher matcher = new EmbeddingResumeJobMatcher(embeddingClient, keywordResumeJobMatcher);
 
@@ -50,8 +51,8 @@ class EmbeddingResumeJobMatcherTest {
 
 	@Test
 	void preservesTheKeywordBasedSkillBreakdownRegardlessOfSemanticScore() {
-		when(embeddingClient.embed("resume narrative")).thenReturn(new float[] { 1f, 0f });
-		when(embeddingClient.embed("job description text needs Java and Docker skills")).thenReturn(new float[] { 0f, 1f });
+		when(embeddingClient.embed(List.of("resume narrative", "job description text needs Java and Docker skills")))
+				.thenReturn(List.of(new float[] { 1f, 0f }, new float[] { 0f, 1f }));
 
 		EmbeddingResumeJobMatcher embeddingMatcher =
 				new EmbeddingResumeJobMatcher(embeddingClient, keywordResumeJobMatcher);
@@ -76,7 +77,8 @@ class EmbeddingResumeJobMatcherTest {
 
 	@Test
 	void propagatesEmbeddingExceptionWhenTheClientFails() {
-		when(embeddingClient.embed("resume narrative")).thenThrow(new EmbeddingException("provider unreachable"));
+		when(embeddingClient.embed(List.of("resume narrative", "job description text")))
+				.thenThrow(new EmbeddingException("provider unreachable"));
 
 		EmbeddingResumeJobMatcher matcher = new EmbeddingResumeJobMatcher(embeddingClient, keywordResumeJobMatcher);
 

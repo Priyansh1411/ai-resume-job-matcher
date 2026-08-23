@@ -1,8 +1,10 @@
 package com.resumematcher.backend.matching;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.when;
+
+import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,7 +39,8 @@ class ResumeMatchControllerSemanticIntegrationTest extends AbstractMySqlIntegrat
 
 	@Test
 	void usesTheSemanticScoreEndToEndWhenSemanticMatchingIsEnabled() throws Exception {
-		when(embeddingClient.embed(anyString())).thenReturn(new float[] { 1f, 0f });
+		when(embeddingClient.embed(anyList()))
+				.thenReturn(List.of(new float[] { 1f, 0f }, new float[] { 1f, 0f }));
 
 		byte[] content = SyntheticDocuments.createSamplePdf(
 				"Jane Doe\njane.doe@example.com\nSkilled in Java, Docker and MySQL.");
@@ -73,7 +76,7 @@ class ResumeMatchControllerSemanticIntegrationTest extends AbstractMySqlIntegrat
 
 	@Test
 	void fallsBackToKeywordScoreEndToEndWhenTheEmbeddingProviderFails() throws Exception {
-		when(embeddingClient.embed(anyString())).thenThrow(new EmbeddingException("provider unreachable"));
+		when(embeddingClient.embed(anyList())).thenThrow(new EmbeddingException("provider unreachable"));
 
 		byte[] content = SyntheticDocuments.createSamplePdf(
 				"Jane Doe\njane.doe@example.com\nSkilled in Java, Docker and MySQL.");

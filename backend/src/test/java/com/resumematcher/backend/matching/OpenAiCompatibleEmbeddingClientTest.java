@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
@@ -17,6 +18,7 @@ class OpenAiCompatibleEmbeddingClientTest {
 
 	private HttpServer server;
 	private String baseUrl;
+	private volatile String lastRequestBody;
 
 	@BeforeEach
 	void startLocalServer() throws IOException {
@@ -83,8 +85,58 @@ class OpenAiCompatibleEmbeddingClientTest {
 				.isInstanceOf(EmbeddingException.class);
 	}
 
+	@Test
+	void parsesEmbeddingsFromABatchedResponseInRequestOrder() throws IOException {
+		respondWith(200, "{\"data\":[{\"index\":0,\"embedding\":[0.1,0.2]},{\"index\":1,\"embedding\":[0.3,0.4]}]}");
+
+		OpenAiCompatibleEmbeddingClient client =
+				new OpenAiCompatibleEmbeddingClient(baseUrl, "test-key", "test-model");
+
+		List<float[]> embeddings = client.embed(List.of("first text", "second text"));
+
+		assertThat(embeddings.get(0)).containsExactly(0.1f, 0.2f);
+		assertThat(embeddings.get(1)).containsExactly(0.3f, 0.4f);
+		assertThat(lastRequestBody).contains("\"input\":[\"first text\",\"second text\"]");
+	}
+
+	@Test
+	void reordersBatchedEmbeddingsUsingTheIndexFieldRatherThanArrayPosition() throws IOException {
+		respondWith(200, "{\"data\":[{\"index\":1,\"embedding\":[0.3,0.4]},{\"index\":0,\"embedding\":[0.1,0.2]}]}");
+
+		OpenAiCompatibleEmbeddingClient client =
+				new OpenAiCompatibleEmbeddingClient(baseUrl, "test-key", "test-model");
+
+		List<float[]> embeddings = client.embed(List.of("first text", "second text"));
+
+		assertThat(embeddings.get(0)).containsExactly(0.1f, 0.2f);
+		assertThat(embeddings.get(1)).containsExactly(0.3f, 0.4f);
+	}
+
+	@Test
+	void throwsEmbeddingExceptionWhenBatchResponseSizeDoesNotMatchRequestSize() throws IOException {
+		respondWith(200, "{\"data\":[{\"index\":0,\"embedding\":[0.1,0.2]}]}");
+
+		OpenAiCompatibleEmbeddingClient client =
+				new OpenAiCompatibleEmbeddingClient(baseUrl, "test-key", "test-model");
+
+		assertThatThrownBy(() -> client.embed(List.of("first text", "second text")))
+				.isInstanceOf(EmbeddingException.class);
+	}
+
+	@Test
+	void throwsEmbeddingExceptionWhenBatchResponseHasADuplicateIndex() throws IOException {
+		respondWith(200, "{\"data\":[{\"index\":0,\"embedding\":[0.1,0.2]},{\"index\":0,\"embedding\":[0.3,0.4]}]}");
+
+		OpenAiCompatibleEmbeddingClient client =
+				new OpenAiCompatibleEmbeddingClient(baseUrl, "test-key", "test-model");
+
+		assertThatThrownBy(() -> client.embed(List.of("first text", "second text")))
+				.isInstanceOf(EmbeddingException.class);
+	}
+
 	private void respondWith(int status, String body) throws IOException {
 		server.createContext("/embeddings", exchange -> {
+			lastRequestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
 			byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
 			exchange.getResponseHeaders().add("Content-Type", "application/json");
 			exchange.sendResponseHeaders(status, bytes.length);

@@ -1,5 +1,6 @@
 package com.resumematcher.backend.matching;
 
+import java.util.List;
 import java.util.Set;
 
 public class EmbeddingResumeJobMatcher implements ResumeJobMatcher {
@@ -21,9 +22,8 @@ public class EmbeddingResumeJobMatcher implements ResumeJobMatcher {
 
 		double similarity;
 		try {
-			float[] resumeEmbedding = embeddingClient.embed(resumeText);
-			float[] jobDescriptionEmbedding = embeddingClient.embed(jobDescriptionText);
-			similarity = CosineSimilarity.compute(resumeEmbedding, jobDescriptionEmbedding);
+			List<float[]> embeddings = embeddingClient.embed(List.of(resumeText, jobDescriptionText));
+			similarity = CosineSimilarity.compute(embeddings.get(0), embeddings.get(1));
 		} catch (IllegalArgumentException e) {
 			// The provider returned embeddings of mismatched dimensionality -
 			// treat this the same as any other expected provider failure.
