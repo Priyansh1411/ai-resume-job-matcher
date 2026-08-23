@@ -6,12 +6,16 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.resumematcher.backend.observability.OpenAiMetrics;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -25,21 +29,26 @@ import org.springframework.stereotype.Component;
 @Component
 public class OpenAiCompatibleEmbeddingClient implements EmbeddingClient {
 
+	private static final Logger log = LoggerFactory.getLogger(OpenAiCompatibleEmbeddingClient.class);
+
 	private final String baseUrl;
 	private final String apiKey;
 	private final String model;
 	private final HttpClient httpClient;
 	private final ObjectMapper objectMapper;
+	private final OpenAiMetrics openAiMetrics;
 
 	public OpenAiCompatibleEmbeddingClient(
 			@Value("${embedding.api.base-url:}") String baseUrl,
 			@Value("${embedding.api.key:}") String apiKey,
-			@Value("${embedding.api.model:text-embedding-3-small}") String model) {
+			@Value("${embedding.api.model:text-embedding-3-small}") String model,
+			OpenAiMetrics openAiMetrics) {
 		this.baseUrl = baseUrl;
 		this.apiKey = apiKey;
 		this.model = model;
 		this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 		this.objectMapper = new ObjectMapper();
+		this.openAiMetrics = openAiMetrics;
 	}
 
 	@Override
@@ -74,6 +83,19 @@ public class OpenAiCompatibleEmbeddingClient implements EmbeddingClient {
 	}
 
 	private String requestEmbeddings(Object input) {
+		Instant start = Instant.now();
+		try {
+			String result = callEmbeddingApi(input);
+			openAiMetrics.recordEmbeddingCall(Duration.between(start, Instant.now()), true);
+			return result;
+		} catch (EmbeddingException e) {
+			openAiMetrics.recordEmbeddingCall(Duration.between(start, Instant.now()), false);
+			log.warn("OpenAI embedding call failed. Reason: {}", e.getMessage());
+			throw e;
+		}
+	}
+
+	private String callEmbeddingApi(Object input) {
 		if (baseUrl == null || baseUrl.isBlank()) {
 			throw new EmbeddingException("Embedding API base URL is not configured");
 		}

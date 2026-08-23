@@ -8,7 +8,9 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 
+import com.resumematcher.backend.observability.OpenAiMetrics;
 import com.sun.net.httpserver.HttpServer;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +20,8 @@ class OpenAiChatClientTest {
 	private HttpServer server;
 	private String baseUrl;
 	private volatile String lastRequestBody;
+	private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+	private final OpenAiMetrics openAiMetrics = new OpenAiMetrics(meterRegistry);
 
 	@BeforeEach
 	void startLocalServer() throws IOException {
@@ -35,7 +39,7 @@ class OpenAiChatClientTest {
 	void returnsTheMessageContentFromASuccessfulResponse() throws IOException {
 		respondWith(200, "{\"choices\":[{\"message\":{\"content\":\"{\\\"strengths\\\":[]}\"}}]}");
 
-		OpenAiChatClient client = new OpenAiChatClient(baseUrl, "test-key", "test-model");
+		OpenAiChatClient client = new OpenAiChatClient(baseUrl, "test-key", "test-model", openAiMetrics);
 
 		String content = client.complete("system prompt", "user prompt");
 
@@ -48,7 +52,7 @@ class OpenAiChatClientTest {
 	void throwsAnalysisUnavailableExceptionOnNonSuccessStatus() throws IOException {
 		respondWith(500, "internal error");
 
-		OpenAiChatClient client = new OpenAiChatClient(baseUrl, "test-key", "test-model");
+		OpenAiChatClient client = new OpenAiChatClient(baseUrl, "test-key", "test-model", openAiMetrics);
 
 		assertThatThrownBy(() -> client.complete("system prompt", "user prompt"))
 				.isInstanceOf(AnalysisUnavailableException.class);
@@ -58,7 +62,7 @@ class OpenAiChatClientTest {
 	void throwsAnalysisUnavailableExceptionOnMalformedJsonResponse() throws IOException {
 		respondWith(200, "this is not json");
 
-		OpenAiChatClient client = new OpenAiChatClient(baseUrl, "test-key", "test-model");
+		OpenAiChatClient client = new OpenAiChatClient(baseUrl, "test-key", "test-model", openAiMetrics);
 
 		assertThatThrownBy(() -> client.complete("system prompt", "user prompt"))
 				.isInstanceOf(AnalysisUnavailableException.class);
@@ -68,7 +72,7 @@ class OpenAiChatClientTest {
 	void throwsAnalysisUnavailableExceptionWhenResponseHasNoMessageContent() throws IOException {
 		respondWith(200, "{\"choices\":[]}");
 
-		OpenAiChatClient client = new OpenAiChatClient(baseUrl, "test-key", "test-model");
+		OpenAiChatClient client = new OpenAiChatClient(baseUrl, "test-key", "test-model", openAiMetrics);
 
 		assertThatThrownBy(() -> client.complete("system prompt", "user prompt"))
 				.isInstanceOf(AnalysisUnavailableException.class);
@@ -76,10 +80,36 @@ class OpenAiChatClientTest {
 
 	@Test
 	void throwsAnalysisUnavailableExceptionWhenBaseUrlIsNotConfigured() {
-		OpenAiChatClient client = new OpenAiChatClient("", "test-key", "test-model");
+		OpenAiChatClient client = new OpenAiChatClient("", "test-key", "test-model", openAiMetrics);
 
 		assertThatThrownBy(() -> client.complete("system prompt", "user prompt"))
 				.isInstanceOf(AnalysisUnavailableException.class);
+	}
+
+	@Test
+	void recordsAChatCompletionCallCounterAndLatencyOnSuccess() throws IOException {
+		respondWith(200, "{\"choices\":[{\"message\":{\"content\":\"{\\\"strengths\\\":[]}\"}}]}");
+
+		OpenAiChatClient client = new OpenAiChatClient(baseUrl, "test-key", "test-model", openAiMetrics);
+		client.complete("system prompt", "user prompt");
+
+		assertThat(meterRegistry.get("openai.chat.calls").tag("outcome", "success").counter().count())
+				.isEqualTo(1.0);
+		assertThat(meterRegistry.get("openai.chat.latency").tag("outcome", "success").timer().count())
+				.isEqualTo(1L);
+	}
+
+	@Test
+	void recordsAChatCompletionCallCounterOnFailure() throws IOException {
+		respondWith(500, "internal error");
+
+		OpenAiChatClient client = new OpenAiChatClient(baseUrl, "test-key", "test-model", openAiMetrics);
+
+		assertThatThrownBy(() -> client.complete("system prompt", "user prompt"))
+				.isInstanceOf(AnalysisUnavailableException.class);
+
+		assertThat(meterRegistry.get("openai.chat.calls").tag("outcome", "failure").counter().count())
+				.isEqualTo(1.0);
 	}
 
 	private void respondWith(int status, String body) throws IOException {

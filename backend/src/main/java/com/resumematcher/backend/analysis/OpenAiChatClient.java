@@ -6,11 +6,15 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.resumematcher.backend.observability.OpenAiMetrics;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -22,24 +26,42 @@ import org.springframework.stereotype.Component;
 @Component
 public class OpenAiChatClient {
 
+	private static final Logger log = LoggerFactory.getLogger(OpenAiChatClient.class);
+
 	private final String baseUrl;
 	private final String apiKey;
 	private final String model;
 	private final HttpClient httpClient;
 	private final ObjectMapper objectMapper;
+	private final OpenAiMetrics openAiMetrics;
 
 	public OpenAiChatClient(
 			@Value("${chat.api.base-url:}") String baseUrl,
 			@Value("${chat.api.key:}") String apiKey,
-			@Value("${chat.api.model:gpt-4o-mini}") String model) {
+			@Value("${chat.api.model:gpt-4o-mini}") String model,
+			OpenAiMetrics openAiMetrics) {
 		this.baseUrl = baseUrl;
 		this.apiKey = apiKey;
 		this.model = model;
 		this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 		this.objectMapper = new ObjectMapper();
+		this.openAiMetrics = openAiMetrics;
 	}
 
 	public String complete(String systemPrompt, String userPrompt) {
+		Instant start = Instant.now();
+		try {
+			String result = callChatCompletionApi(systemPrompt, userPrompt);
+			openAiMetrics.recordChatCompletionCall(Duration.between(start, Instant.now()), true);
+			return result;
+		} catch (AnalysisUnavailableException e) {
+			openAiMetrics.recordChatCompletionCall(Duration.between(start, Instant.now()), false);
+			log.warn("OpenAI chat completion call failed. Reason: {}", e.getMessage());
+			throw e;
+		}
+	}
+
+	private String callChatCompletionApi(String systemPrompt, String userPrompt) {
 		if (baseUrl == null || baseUrl.isBlank()) {
 			throw new AnalysisUnavailableException("Chat completion API base URL is not configured");
 		}
