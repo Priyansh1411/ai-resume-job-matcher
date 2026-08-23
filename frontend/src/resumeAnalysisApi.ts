@@ -1,4 +1,5 @@
 import { extractErrorMessage } from './apiErrors'
+import { protectedFetch, UnauthorizedError } from './apiClient'
 
 export type ResumeAnalysisResult = {
   strengths: string[]
@@ -25,21 +26,18 @@ export async function fetchResumeAnalysis(
   jobDescription: string,
 ): Promise<ResumeAnalysisResult> {
   let response: Response
+  let data: unknown
   try {
-    response = await fetch(`/api/resumes/${encodeURIComponent(resumeId)}/analysis`, {
+    ;({ response, data } = await protectedFetch(`/api/resumes/${encodeURIComponent(resumeId)}/analysis`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jobDescription }),
-    })
-  } catch {
+    }))
+  } catch (err) {
+    if (err instanceof UnauthorizedError) {
+      throw err
+    }
     throw new ResumeAnalysisError('Could not reach the server. Please check your connection and try again.')
-  }
-
-  let data: unknown = null
-  try {
-    data = await response.json()
-  } catch {
-    data = null
   }
 
   if (!response.ok) {

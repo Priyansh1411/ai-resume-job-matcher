@@ -1,4 +1,5 @@
 import { extractErrorMessage } from './apiErrors'
+import { protectedFetch, UnauthorizedError } from './apiClient'
 
 export type ResumeProfileResult = {
   fullName: string | null
@@ -26,17 +27,14 @@ function isResumeProfileResult(value: unknown): value is ResumeProfileResult {
 
 export async function fetchResumeProfile(resumeId: string): Promise<ResumeProfileResult> {
   let response: Response
+  let data: unknown
   try {
-    response = await fetch(`/api/resumes/${encodeURIComponent(resumeId)}/profile`)
-  } catch {
+    ;({ response, data } = await protectedFetch(`/api/resumes/${encodeURIComponent(resumeId)}/profile`))
+  } catch (err) {
+    if (err instanceof UnauthorizedError) {
+      throw err
+    }
     throw new ResumeProfileError('Could not reach the server. Please check your connection and try again.')
-  }
-
-  let data: unknown = null
-  try {
-    data = await response.json()
-  } catch {
-    data = null
   }
 
   if (!response.ok) {

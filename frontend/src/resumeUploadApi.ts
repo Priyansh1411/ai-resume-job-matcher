@@ -1,4 +1,5 @@
 import { extractErrorMessage } from './apiErrors'
+import { protectedFetch, UnauthorizedError } from './apiClient'
 
 export type ResumeUploadResult = {
   id: string
@@ -29,20 +30,17 @@ export async function uploadResume(file: File): Promise<ResumeUploadResult> {
   formData.append('file', file)
 
   let response: Response
+  let data: unknown
   try {
-    response = await fetch('/api/resumes/upload', {
+    ;({ response, data } = await protectedFetch('/api/resumes/upload', {
       method: 'POST',
       body: formData,
-    })
-  } catch {
+    }))
+  } catch (err) {
+    if (err instanceof UnauthorizedError) {
+      throw err
+    }
     throw new ResumeUploadError('Could not reach the server. Please check your connection and try again.')
-  }
-
-  let data: unknown = null
-  try {
-    data = await response.json()
-  } catch {
-    data = null
   }
 
   if (!response.ok) {

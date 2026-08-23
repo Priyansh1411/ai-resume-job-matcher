@@ -13,6 +13,9 @@ import type { ResumeMatchResult } from './resumeMatchApi'
 import AiAnalysisPanel from './AiAnalysisPanel'
 import { ResumeAnalysisError, fetchResumeAnalysis } from './resumeAnalysisApi'
 import type { ResumeAnalysisResult } from './resumeAnalysisApi'
+import { UnauthorizedError } from './apiClient'
+import { useAuth } from './useAuth'
+import AuthCard from './AuthCard'
 import './App.css'
 
 type UploadStatus = 'idle' | 'uploading' | 'success' | 'error'
@@ -21,6 +24,7 @@ type MatchStatus = 'idle' | 'loading' | 'success' | 'error'
 type AnalysisStatus = 'idle' | 'loading' | 'success' | 'error'
 
 function App() {
+  const auth = useAuth()
   const [resumeFile, setResumeFile] = useState<File | null>(null)
   const [jobDescription, setJobDescription] = useState('')
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle')
@@ -85,6 +89,10 @@ function App() {
         setProfileResult(profile)
         setProfileStatus('success')
       } catch (profileErr) {
+        if (profileErr instanceof UnauthorizedError) {
+          auth.handleUnauthorized()
+          return
+        }
         const profileMessage =
           profileErr instanceof ResumeProfileError
             ? profileErr.message
@@ -99,6 +107,10 @@ function App() {
         setMatchResult(match)
         setMatchStatus('success')
       } catch (matchErr) {
+        if (matchErr instanceof UnauthorizedError) {
+          auth.handleUnauthorized()
+          return
+        }
         const matchMessage =
           matchErr instanceof ResumeMatchError
             ? matchErr.message
@@ -107,6 +119,11 @@ function App() {
         setMatchStatus('error')
       }
     } catch (err) {
+      if (err instanceof UnauthorizedError) {
+        auth.handleUnauthorized()
+        setUploadStatus('idle')
+        return
+      }
       const message =
         err instanceof ResumeUploadError ? err.message : 'Upload failed. Please try again.'
       setUploadErrorMessage(message)
@@ -127,6 +144,11 @@ function App() {
       setAnalysisResult(analysis)
       setAnalysisStatus('success')
     } catch (analysisErr) {
+      if (analysisErr instanceof UnauthorizedError) {
+        auth.handleUnauthorized()
+        setAnalysisStatus('idle')
+        return
+      }
       const analysisMessage =
         analysisErr instanceof ResumeAnalysisError
           ? analysisErr.message
@@ -148,9 +170,15 @@ function App() {
             <a href="#top">Home</a>
             <a href="#how-it-works">How It Works</a>
           </nav>
-          <a className="btn btn--primary" href="#upload">
-            Get Started
-          </a>
+          {auth.isAuthenticated ? (
+            <button type="button" className="btn btn--secondary" onClick={auth.logout}>
+              Log Out
+            </button>
+          ) : (
+            <a className="btn btn--primary" href="#upload">
+              Get Started
+            </a>
+          )}
         </div>
       </header>
 
@@ -173,18 +201,28 @@ function App() {
           id="upload"
           aria-label="Resume and job description input"
         >
-          <ResumeUploadCard onFileSelected={handleResumeFileSelected} />
+          {auth.isAuthenticated ? (
+            <>
+              <ResumeUploadCard onFileSelected={handleResumeFileSelected} />
 
-          <JobDescriptionCard
-            value={jobDescription}
-            onChange={setJobDescription}
-            isAnalyzeEnabled={isAnalyzeEnabled}
-            isUploading={uploadStatus === 'uploading'}
-            onAnalyzeClick={handleAnalyzeClick}
-          />
+              <JobDescriptionCard
+                value={jobDescription}
+                onChange={setJobDescription}
+                isAnalyzeEnabled={isAnalyzeEnabled}
+                isUploading={uploadStatus === 'uploading'}
+                onAnalyzeClick={handleAnalyzeClick}
+              />
+            </>
+          ) : (
+            <AuthCard
+              isSubmitting={auth.isSubmitting}
+              errorMessage={auth.errorMessage}
+              onSubmit={auth.submit}
+            />
+          )}
         </section>
 
-        {(uploadStatus === 'success' || uploadStatus === 'error') && (
+        {auth.isAuthenticated && (uploadStatus === 'success' || uploadStatus === 'error') && (
           <div className="status-panel-wrapper">
             <UploadStatusPanel
               status={uploadStatus}
@@ -194,7 +232,7 @@ function App() {
           </div>
         )}
 
-        {profileStatus !== 'idle' && (
+        {auth.isAuthenticated && profileStatus !== 'idle' && (
           <div className="status-panel-wrapper">
             <ResumeProfilePanel
               status={profileStatus}
@@ -204,7 +242,7 @@ function App() {
           </div>
         )}
 
-        {matchStatus !== 'idle' && (
+        {auth.isAuthenticated && matchStatus !== 'idle' && (
           <div className="status-panel-wrapper">
             <MatchResultPanel
               status={matchStatus}
@@ -214,7 +252,7 @@ function App() {
           </div>
         )}
 
-        {matchStatus === 'success' && (
+        {auth.isAuthenticated && matchStatus === 'success' && (
           <div className="status-panel-wrapper">
             <button
               type="button"
@@ -227,7 +265,7 @@ function App() {
           </div>
         )}
 
-        {analysisStatus !== 'idle' && (
+        {auth.isAuthenticated && analysisStatus !== 'idle' && (
           <div className="status-panel-wrapper">
             <AiAnalysisPanel
               status={analysisStatus}
