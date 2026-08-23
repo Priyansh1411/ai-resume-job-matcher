@@ -54,15 +54,62 @@ class ResumeMatchControllerIntegrationTest extends AbstractMySqlIntegrationTest 
 
 		JsonNode matchJson = objectMapper.readTree(matchResponseBody);
 
+		// Existing fields: this JD has no Required/Preferred headers, so scoring
+		// must be identical to Phase 1's flat-coverage behavior.
 		assertThat(matchJson.get("matchScorePercentage").asInt()).isEqualTo(33);
+		assertThat(toList(matchJson.get("matchedSkills"))).containsExactly("java");
+		assertThat(toList(matchJson.get("missingSkills"))).containsExactlyInAnyOrder("kubernetes", "aws");
 
-		List<String> matchedSkills = new ArrayList<>();
-		matchJson.get("matchedSkills").forEach(node -> matchedSkills.add(node.asText()));
-		assertThat(matchedSkills).containsExactly("java");
+		// New fields: with no sections detected, everything falls into the
+		// required bucket and the preferred bucket stays empty.
+		assertThat(toList(matchJson.get("matchedRequiredSkills"))).containsExactly("java");
+		assertThat(toList(matchJson.get("missingRequiredSkills"))).containsExactlyInAnyOrder("kubernetes", "aws");
+		assertThat(toList(matchJson.get("matchedPreferredSkills"))).isEmpty();
+		assertThat(toList(matchJson.get("missingPreferredSkills"))).isEmpty();
+	}
 
-		List<String> missingSkills = new ArrayList<>();
-		matchJson.get("missingSkills").forEach(node -> missingSkills.add(node.asText()));
-		assertThat(missingSkills).containsExactlyInAnyOrder("kubernetes", "aws");
+	@Test
+	void matchWithExplicitRequiredAndPreferredSectionsReturnsCorrectBreakdown() throws Exception {
+		byte[] content = SyntheticDocuments.createSamplePdf(
+				"Jane Doe\njane.doe@example.com\nSkilled in Java, Docker and MySQL.");
+		MockMultipartFile file = new MockMultipartFile("file", "resume.pdf", "application/pdf", content);
+
+		String uploadResponseBody = mockMvc.perform(
+						MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file))
+				.andExpect(MockMvcResultMatchers.status().isCreated())
+				.andReturn().getResponse().getContentAsString();
+
+		String resumeId = objectMapper.readTree(uploadResponseBody).get("id").asText();
+
+		String jobDescription = "Required:\\nJava, Kubernetes\\n\\nPreferred:\\nAWS, MySQL\\n\\n"
+				+ "Join our team to help us build and scale a modern, reliable cloud "
+				+ "platform used by millions of people around the world every day.";
+
+		String matchResponseBody = mockMvc.perform(MockMvcRequestBuilders.post("/api/resumes/" + resumeId + "/match")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"jobDescription\":\"" + jobDescription + "\"}"))
+				.andExpect(MockMvcResultMatchers.status().isOk())
+				.andReturn().getResponse().getContentAsString();
+
+		JsonNode matchJson = objectMapper.readTree(matchResponseBody);
+
+		// resume skills = {java, docker, mysql}; required = {java, kubernetes};
+		// preferred = {aws, mysql}. weighted = (1*2 + 1*1) / (2*2 + 2*1) = 3/6 = 50%.
+		assertThat(matchJson.get("matchScorePercentage").asInt()).isEqualTo(50);
+		assertThat(toList(matchJson.get("matchedRequiredSkills"))).containsExactly("java");
+		assertThat(toList(matchJson.get("missingRequiredSkills"))).containsExactly("kubernetes");
+		assertThat(toList(matchJson.get("matchedPreferredSkills"))).containsExactly("mysql");
+		assertThat(toList(matchJson.get("missingPreferredSkills"))).containsExactly("aws");
+
+		// Existing fields stay the union of the required and preferred breakdowns.
+		assertThat(toList(matchJson.get("matchedSkills"))).containsExactlyInAnyOrder("java", "mysql");
+		assertThat(toList(matchJson.get("missingSkills"))).containsExactlyInAnyOrder("kubernetes", "aws");
+	}
+
+	private List<String> toList(JsonNode arrayNode) {
+		List<String> values = new ArrayList<>();
+		arrayNode.forEach(node -> values.add(node.asText()));
+		return values;
 	}
 
 	@Test

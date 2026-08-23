@@ -41,7 +41,8 @@ class ResumeJobMatchServiceTest {
 				new ResumeSkill("resume-1", "java"),
 				new ResumeSkill("resume-1", "docker")));
 		when(resumeJobMatcher.match(eq(Set.of("java", "docker")), eq("job text")))
-				.thenReturn(new MatchResult(80, Set.of("java"), Set.of("aws")));
+				.thenReturn(new MatchResult(80, Set.of("java"), Set.of("aws"),
+						Set.of("java"), Set.of("aws"), Set.of(), Set.of()));
 
 		ResumeJobMatchService service =
 				new ResumeJobMatchService(resumeRepository, resumeSkillRepository, resumeJobMatcher);
@@ -51,6 +52,10 @@ class ResumeJobMatchServiceTest {
 		assertThat(result.matchScorePercentage()).isEqualTo(80);
 		assertThat(result.matchedSkills()).containsExactly("java");
 		assertThat(result.missingSkills()).containsExactly("aws");
+		assertThat(result.matchedRequiredSkills()).containsExactly("java");
+		assertThat(result.missingRequiredSkills()).containsExactly("aws");
+		assertThat(result.matchedPreferredSkills()).isEmpty();
+		assertThat(result.missingPreferredSkills()).isEmpty();
 	}
 
 	@Test

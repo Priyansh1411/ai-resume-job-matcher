@@ -8,6 +8,7 @@ import com.resumematcher.backend.matching.MatchResult;
 import com.resumematcher.backend.matching.ResumeJobMatchService;
 import com.resumematcher.backend.matching.ResumeNotFoundException;
 import com.resumematcher.backend.matching.ResumeNotReadyException;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -33,15 +34,25 @@ class ResumeMatchControllerTest {
 	@Test
 	void returnsMatchResultWhenSuccessful() throws Exception {
 		when(resumeJobMatchService.matchResumeToJobDescription("resume-1", VALID_JOB_DESCRIPTION))
-				.thenReturn(new MatchResult(75, Set.of("java", "docker"), Set.of("aws")));
+				.thenReturn(new MatchResult(75, Set.of("java", "docker"), Set.of("aws"),
+						Set.of("java"), Set.of("aws"), Set.of("docker"), Set.of()));
 
 		mockMvc.perform(MockMvcRequestBuilders.post("/api/resumes/resume-1/match")
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"jobDescription\":\"" + VALID_JOB_DESCRIPTION + "\"}"))
 				.andExpect(MockMvcResultMatchers.status().isOk())
 				.andExpect(MockMvcResultMatchers.jsonPath("$.matchScorePercentage").value(75))
-				.andExpect(MockMvcResultMatchers.jsonPath("$.matchedSkills[0]").value("java"))
-				.andExpect(MockMvcResultMatchers.jsonPath("$.missingSkills[0]").value("aws"));
+				.andExpect(MockMvcResultMatchers.jsonPath("$.matchedSkills")
+						.value(Matchers.containsInAnyOrder("java", "docker")))
+				.andExpect(MockMvcResultMatchers.jsonPath("$.missingSkills")
+						.value(Matchers.containsInAnyOrder("aws")))
+				.andExpect(MockMvcResultMatchers.jsonPath("$.matchedRequiredSkills")
+						.value(Matchers.containsInAnyOrder("java")))
+				.andExpect(MockMvcResultMatchers.jsonPath("$.missingRequiredSkills")
+						.value(Matchers.containsInAnyOrder("aws")))
+				.andExpect(MockMvcResultMatchers.jsonPath("$.matchedPreferredSkills")
+						.value(Matchers.containsInAnyOrder("docker")))
+				.andExpect(MockMvcResultMatchers.jsonPath("$.missingPreferredSkills").isEmpty());
 	}
 
 	@Test

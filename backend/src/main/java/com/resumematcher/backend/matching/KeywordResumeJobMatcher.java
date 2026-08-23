@@ -3,35 +3,62 @@ package com.resumematcher.backend.matching;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-import com.resumematcher.backend.profile.SkillKeywordMatcher;
 import org.springframework.stereotype.Component;
 
 @Component
 public class KeywordResumeJobMatcher implements ResumeJobMatcher {
 
-	private final SkillKeywordMatcher skillKeywordMatcher;
+	private static final int REQUIRED_WEIGHT = 2;
+	private static final int PREFERRED_WEIGHT = 1;
 
-	public KeywordResumeJobMatcher(SkillKeywordMatcher skillKeywordMatcher) {
-		this.skillKeywordMatcher = skillKeywordMatcher;
+	private final JobDescriptionRequirementParser jobDescriptionRequirementParser;
+
+	public KeywordResumeJobMatcher(JobDescriptionRequirementParser jobDescriptionRequirementParser) {
+		this.jobDescriptionRequirementParser = jobDescriptionRequirementParser;
 	}
 
 	@Override
 	public MatchResult match(Set<String> resumeSkills, String jobDescriptionText) {
-		Set<String> jobDescriptionSkills = skillKeywordMatcher.findSkills(jobDescriptionText);
+		JobDescriptionSkills jobDescriptionSkills = jobDescriptionRequirementParser.parse(jobDescriptionText);
+		Set<String> requiredSkills = jobDescriptionSkills.requiredSkills();
+		Set<String> preferredSkills = jobDescriptionSkills.preferredSkills();
 
-		if (jobDescriptionSkills.isEmpty()) {
-			return new MatchResult(0, Set.of(), Set.of());
+		if (requiredSkills.isEmpty() && preferredSkills.isEmpty()) {
+			return new MatchResult(0, Set.of(), Set.of(), Set.of(), Set.of(), Set.of(), Set.of());
 		}
 
-		Set<String> matchedSkills = new LinkedHashSet<>(jobDescriptionSkills);
-		matchedSkills.retainAll(resumeSkills);
+		Set<String> matchedRequired = intersect(requiredSkills, resumeSkills);
+		Set<String> missingRequired = difference(requiredSkills, resumeSkills);
+		Set<String> matchedPreferred = intersect(preferredSkills, resumeSkills);
+		Set<String> missingPreferred = difference(preferredSkills, resumeSkills);
 
-		Set<String> missingSkills = new LinkedHashSet<>(jobDescriptionSkills);
-		missingSkills.removeAll(resumeSkills);
+		int weightedMatched = matchedRequired.size() * REQUIRED_WEIGHT + matchedPreferred.size() * PREFERRED_WEIGHT;
+		int weightedTotal = requiredSkills.size() * REQUIRED_WEIGHT + preferredSkills.size() * PREFERRED_WEIGHT;
+		int matchScorePercentage = Math.round(100f * weightedMatched / weightedTotal);
 
-		int matchScorePercentage = Math.round(100f * matchedSkills.size() / jobDescriptionSkills.size());
+		Set<String> matchedSkills = union(matchedRequired, matchedPreferred);
+		Set<String> missingSkills = union(missingRequired, missingPreferred);
 
-		return new MatchResult(matchScorePercentage, matchedSkills, missingSkills);
+		return new MatchResult(matchScorePercentage, matchedSkills, missingSkills,
+				matchedRequired, missingRequired, matchedPreferred, missingPreferred);
+	}
+
+	private Set<String> intersect(Set<String> a, Set<String> b) {
+		Set<String> result = new LinkedHashSet<>(a);
+		result.retainAll(b);
+		return result;
+	}
+
+	private Set<String> difference(Set<String> a, Set<String> b) {
+		Set<String> result = new LinkedHashSet<>(a);
+		result.removeAll(b);
+		return result;
+	}
+
+	private Set<String> union(Set<String> a, Set<String> b) {
+		Set<String> result = new LinkedHashSet<>(a);
+		result.addAll(b);
+		return result;
 	}
 
 }

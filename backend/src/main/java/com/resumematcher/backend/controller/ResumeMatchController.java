@@ -35,7 +35,11 @@ public class ResumeMatchController {
 		ResumeMatchResponse response = new ResumeMatchResponse(
 				result.matchScorePercentage(),
 				result.matchedSkills(),
-				result.missingSkills()
+				result.missingSkills(),
+				result.matchedRequiredSkills(),
+				result.missingRequiredSkills(),
+				result.matchedPreferredSkills(),
+				result.missingPreferredSkills()
 		);
 
 		return ResponseEntity.ok(response);

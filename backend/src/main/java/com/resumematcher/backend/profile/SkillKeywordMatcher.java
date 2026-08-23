@@ -1,6 +1,9 @@
 package com.resumematcher.backend.profile;
 
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -9,32 +12,49 @@ import org.springframework.stereotype.Component;
 @Component
 public class SkillKeywordMatcher {
 
-	private static final Set<String> KNOWN_SKILLS = Set.of(
-			"java", "python", "javascript", "typescript", "c++", "c#", "go", "rust", "kotlin", "swift",
-			"spring", "spring boot", "react", "angular", "vue", "node.js", "django", "flask",
-			"mysql", "postgresql", "mongodb", "redis", "oracle",
-			"docker", "kubernetes", "aws", "azure", "gcp", "terraform", "jenkins", "git", "ci/cd",
-			"rest", "graphql", "microservices", "html", "css", "sql",
-			"machine learning", "data analysis", "project management", "agile", "scrum",
-			"communication", "leadership", "problem solving", "teamwork"
-	);
+	private final Map<String, List<Pattern>> aliasPatternsByCanonicalSkill;
+
+	public SkillKeywordMatcher(SkillDictionary skillDictionary) {
+		this.aliasPatternsByCanonicalSkill = compilePatterns(skillDictionary.getAliasesByCanonicalSkill());
+	}
 
 	public Set<String> findSkills(String text) {
 		if (text == null) {
 			return Set.of();
 		}
 
-		String lowerCaseText = text.toLowerCase();
 		Set<String> matchedSkills = new LinkedHashSet<>();
 
-		for (String skill : KNOWN_SKILLS) {
-			Pattern skillPattern = Pattern.compile("\\b" + Pattern.quote(skill) + "\\b", Pattern.CASE_INSENSITIVE);
-			if (skillPattern.matcher(lowerCaseText).find()) {
-				matchedSkills.add(skill);
+		for (Map.Entry<String, List<Pattern>> entry : aliasPatternsByCanonicalSkill.entrySet()) {
+			for (Pattern aliasPattern : entry.getValue()) {
+				if (aliasPattern.matcher(text).find()) {
+					matchedSkills.add(entry.getKey());
+					break;
+				}
 			}
 		}
 
 		return matchedSkills;
+	}
+
+	private Map<String, List<Pattern>> compilePatterns(Map<String, List<String>> aliasesByCanonicalSkill) {
+		Map<String, List<Pattern>> compiled = new LinkedHashMap<>();
+		for (Map.Entry<String, List<String>> entry : aliasesByCanonicalSkill.entrySet()) {
+			List<Pattern> patterns = entry.getValue().stream()
+					.map(this::compileAliasPattern)
+					.toList();
+			compiled.put(entry.getKey(), patterns);
+		}
+		return compiled;
+	}
+
+	private Pattern compileAliasPattern(String alias) {
+		// Uses lookaround instead of \b so aliases ending or starting with a
+		// non-word character (e.g. "c++", "c#", ".net", "ci/cd") still match
+		// correctly; \b only fires on a word/non-word transition and silently
+		// never matches those tokens.
+		String pattern = "(?<![A-Za-z0-9])" + Pattern.quote(alias) + "(?![A-Za-z0-9])";
+		return Pattern.compile(pattern, Pattern.CASE_INSENSITIVE);
 	}
 
 }
