@@ -10,11 +10,15 @@ import { ResumeProfileError, fetchResumeProfile } from './resumeProfileApi'
 import type { ResumeProfileResult } from './resumeProfileApi'
 import { ResumeMatchError, fetchResumeMatch } from './resumeMatchApi'
 import type { ResumeMatchResult } from './resumeMatchApi'
+import AiAnalysisPanel from './AiAnalysisPanel'
+import { ResumeAnalysisError, fetchResumeAnalysis } from './resumeAnalysisApi'
+import type { ResumeAnalysisResult } from './resumeAnalysisApi'
 import './App.css'
 
 type UploadStatus = 'idle' | 'uploading' | 'success' | 'error'
 type ProfileStatus = 'idle' | 'loading' | 'success' | 'error'
 type MatchStatus = 'idle' | 'loading' | 'success' | 'error'
+type AnalysisStatus = 'idle' | 'loading' | 'success' | 'error'
 
 function App() {
   const [resumeFile, setResumeFile] = useState<File | null>(null)
@@ -28,6 +32,9 @@ function App() {
   const [matchStatus, setMatchStatus] = useState<MatchStatus>('idle')
   const [matchResult, setMatchResult] = useState<ResumeMatchResult | null>(null)
   const [matchErrorMessage, setMatchErrorMessage] = useState<string | null>(null)
+  const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus>('idle')
+  const [analysisResult, setAnalysisResult] = useState<ResumeAnalysisResult | null>(null)
+  const [analysisErrorMessage, setAnalysisErrorMessage] = useState<string | null>(null)
 
   const isResumeValid = resumeFile !== null
   const isJobDescriptionValid =
@@ -45,6 +52,9 @@ function App() {
     setMatchStatus('idle')
     setMatchResult(null)
     setMatchErrorMessage(null)
+    setAnalysisStatus('idle')
+    setAnalysisResult(null)
+    setAnalysisErrorMessage(null)
   }
 
   async function handleAnalyzeClick() {
@@ -60,6 +70,9 @@ function App() {
     setMatchStatus('idle')
     setMatchResult(null)
     setMatchErrorMessage(null)
+    setAnalysisStatus('idle')
+    setAnalysisResult(null)
+    setAnalysisErrorMessage(null)
 
     try {
       const result = await uploadResume(resumeFile)
@@ -98,6 +111,28 @@ function App() {
         err instanceof ResumeUploadError ? err.message : 'Upload failed. Please try again.'
       setUploadErrorMessage(message)
       setUploadStatus('error')
+    }
+  }
+
+  async function handleGenerateAnalysisClick() {
+    if (!uploadResult || analysisStatus === 'loading') {
+      return
+    }
+
+    setAnalysisStatus('loading')
+    setAnalysisErrorMessage(null)
+
+    try {
+      const analysis = await fetchResumeAnalysis(uploadResult.id, jobDescription)
+      setAnalysisResult(analysis)
+      setAnalysisStatus('success')
+    } catch (analysisErr) {
+      const analysisMessage =
+        analysisErr instanceof ResumeAnalysisError
+          ? analysisErr.message
+          : 'Could not generate the AI analysis.'
+      setAnalysisErrorMessage(analysisMessage)
+      setAnalysisStatus('error')
     }
   }
 
@@ -175,6 +210,29 @@ function App() {
               status={matchStatus}
               result={matchResult}
               errorMessage={matchErrorMessage}
+            />
+          </div>
+        )}
+
+        {matchStatus === 'success' && (
+          <div className="status-panel-wrapper">
+            <button
+              type="button"
+              className="btn btn--secondary"
+              disabled={analysisStatus === 'loading'}
+              onClick={handleGenerateAnalysisClick}
+            >
+              {analysisStatus === 'loading' ? 'Generating AI Analysis...' : 'Generate AI Analysis'}
+            </button>
+          </div>
+        )}
+
+        {analysisStatus !== 'idle' && (
+          <div className="status-panel-wrapper">
+            <AiAnalysisPanel
+              status={analysisStatus}
+              result={analysisResult}
+              errorMessage={analysisErrorMessage}
             />
           </div>
         )}
