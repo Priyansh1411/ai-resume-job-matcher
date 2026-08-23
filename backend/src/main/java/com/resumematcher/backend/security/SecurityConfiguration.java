@@ -10,11 +10,11 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * Phase 1 of the authentication milestone: foundation only. No endpoint requires
- * authentication yet (permitAll on every request) - JwtAuthenticationFilter still
- * runs on every request so a valid token populates the SecurityContext, but
- * nothing enforces it. Requiring authentication on the resume endpoints, and
- * adding resume-ownership checks, is Phase 2.
+ * Phase 2 of the authentication milestone: /api/resumes/** now requires
+ * authentication. Resource ownership (does this user own this specific resume)
+ * is not something URL-pattern rules can express, so that check lives in the
+ * service layer (ResumeJobMatchService, ResumeAnalysisService,
+ * ResumeProfileQueryService), not here.
  */
 @Configuration
 public class SecurityConfiguration {
@@ -35,7 +35,11 @@ public class SecurityConfiguration {
 		http
 				.csrf(csrf -> csrf.disable())
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-				.authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+				.authorizeHttpRequests(auth -> auth
+						.requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+						.requestMatchers("/api/health", "/api/database/health").permitAll()
+						.requestMatchers("/api/resumes/**").authenticated()
+						.anyRequest().permitAll())
 				.addFilterBefore(new JwtAuthenticationFilter(jwtService), UsernamePasswordAuthenticationFilter.class);
 
 		return http.build();

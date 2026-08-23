@@ -9,6 +9,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumematcher.backend.testsupport.AbstractMySqlIntegrationTest;
 import com.resumematcher.backend.testsupport.SyntheticDocuments;
+import com.resumematcher.backend.testsupport.TestAuthSupport;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -29,6 +31,12 @@ class ResumeMatchControllerIntegrationTest extends AbstractMySqlIntegrationTest 
 	private MockMvc mockMvc;
 
 	private final ObjectMapper objectMapper = new ObjectMapper();
+	private String authHeader;
+
+	@BeforeEach
+	void authenticate() throws Exception {
+		authHeader = TestAuthSupport.registerAndGetAuthorizationHeader(mockMvc);
+	}
 
 	@Test
 	void matchesUploadedResumeAgainstJobDescription() throws Exception {
@@ -37,7 +45,8 @@ class ResumeMatchControllerIntegrationTest extends AbstractMySqlIntegrationTest 
 		MockMultipartFile file = new MockMultipartFile("file", "resume.pdf", "application/pdf", content);
 
 		String uploadResponseBody = mockMvc.perform(
-						MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file))
+						MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file)
+								.header("Authorization", authHeader))
 				.andExpect(MockMvcResultMatchers.status().isCreated())
 				.andReturn().getResponse().getContentAsString();
 
@@ -47,6 +56,7 @@ class ResumeMatchControllerIntegrationTest extends AbstractMySqlIntegrationTest 
 				+ "Kubernetes and AWS to help build and operate our cloud platform at scale.";
 
 		String matchResponseBody = mockMvc.perform(MockMvcRequestBuilders.post("/api/resumes/" + resumeId + "/match")
+						.header("Authorization", authHeader)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"jobDescription\":\"" + jobDescription + "\"}"))
 				.andExpect(MockMvcResultMatchers.status().isOk())
@@ -75,7 +85,8 @@ class ResumeMatchControllerIntegrationTest extends AbstractMySqlIntegrationTest 
 		MockMultipartFile file = new MockMultipartFile("file", "resume.pdf", "application/pdf", content);
 
 		String uploadResponseBody = mockMvc.perform(
-						MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file))
+						MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file)
+								.header("Authorization", authHeader))
 				.andExpect(MockMvcResultMatchers.status().isCreated())
 				.andReturn().getResponse().getContentAsString();
 
@@ -86,6 +97,7 @@ class ResumeMatchControllerIntegrationTest extends AbstractMySqlIntegrationTest 
 				+ "platform used by millions of people around the world every day.";
 
 		String matchResponseBody = mockMvc.perform(MockMvcRequestBuilders.post("/api/resumes/" + resumeId + "/match")
+						.header("Authorization", authHeader)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"jobDescription\":\"" + jobDescription + "\"}"))
 				.andExpect(MockMvcResultMatchers.status().isOk())
@@ -118,9 +130,36 @@ class ResumeMatchControllerIntegrationTest extends AbstractMySqlIntegrationTest 
 				+ "Kubernetes and AWS to help build and operate our cloud platform at scale.";
 
 		mockMvc.perform(MockMvcRequestBuilders.post("/api/resumes/does-not-exist/match")
+						.header("Authorization", authHeader)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"jobDescription\":\"" + jobDescription + "\"}"))
 				.andExpect(MockMvcResultMatchers.status().isNotFound());
+	}
+
+	@Test
+	void rejectsMatchingWhenTheAuthenticatedUserDoesNotOwnTheResume() throws Exception {
+		byte[] content = SyntheticDocuments.createSamplePdf(
+				"Jane Doe\njane.doe@example.com\nSkilled in Java, Docker and MySQL.");
+		MockMultipartFile file = new MockMultipartFile("file", "resume.pdf", "application/pdf", content);
+
+		String uploadResponseBody = mockMvc.perform(
+						MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file)
+								.header("Authorization", authHeader))
+				.andExpect(MockMvcResultMatchers.status().isCreated())
+				.andReturn().getResponse().getContentAsString();
+		String resumeId = objectMapper.readTree(uploadResponseBody).get("id").asText();
+
+		// A second, different authenticated user - not the one who uploaded above.
+		String otherUserAuthHeader = TestAuthSupport.registerAndGetAuthorizationHeader(mockMvc);
+
+		String jobDescription = "We are looking for a backend engineer experienced with Java, "
+				+ "Kubernetes and AWS to help build and operate our cloud platform at scale.";
+
+		mockMvc.perform(MockMvcRequestBuilders.post("/api/resumes/" + resumeId + "/match")
+						.header("Authorization", otherUserAuthHeader)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"jobDescription\":\"" + jobDescription + "\"}"))
+				.andExpect(MockMvcResultMatchers.status().isForbidden());
 	}
 
 }

@@ -18,6 +18,8 @@ import com.resumematcher.backend.matching.ResumeNotFoundException;
 import com.resumematcher.backend.matching.ResumeNotReadyException;
 import com.resumematcher.backend.repository.ResumeRepository;
 import com.resumematcher.backend.repository.ResumeSkillRepository;
+import com.resumematcher.backend.security.CurrentUserProvider;
+import com.resumematcher.backend.security.ResumeAccessDeniedException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -36,6 +38,7 @@ public class ResumeAnalysisService {
 	private final ResumeSkillRepository resumeSkillRepository;
 	private final KeywordResumeJobMatcher keywordResumeJobMatcher;
 	private final OpenAiChatClient chatClient;
+	private final CurrentUserProvider currentUserProvider;
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	public ResumeAnalysisService(
@@ -43,12 +46,14 @@ public class ResumeAnalysisService {
 			ResumeRepository resumeRepository,
 			ResumeSkillRepository resumeSkillRepository,
 			KeywordResumeJobMatcher keywordResumeJobMatcher,
-			OpenAiChatClient chatClient) {
+			OpenAiChatClient chatClient,
+			CurrentUserProvider currentUserProvider) {
 		this.analysisEnabled = analysisEnabled;
 		this.resumeRepository = resumeRepository;
 		this.resumeSkillRepository = resumeSkillRepository;
 		this.keywordResumeJobMatcher = keywordResumeJobMatcher;
 		this.chatClient = chatClient;
+		this.currentUserProvider = currentUserProvider;
 	}
 
 	public ResumeAnalysisResponse analyze(String resumeId, String jobDescriptionText) {
@@ -58,6 +63,14 @@ public class ResumeAnalysisService {
 
 		Resume resume = resumeRepository.findById(resumeId)
 				.orElseThrow(() -> new ResumeNotFoundException("No resume found with id: " + resumeId));
+
+		// Ownership before processing-status, same reasoning as ResumeJobMatchService:
+		// a non-owner shouldn't learn anything about the resume's state.
+		String currentUserId = currentUserProvider.getCurrentUserId()
+				.orElseThrow(() -> new ResumeAccessDeniedException("Not authorized to access this resume"));
+		if (!currentUserId.equals(resume.getOwnerId())) {
+			throw new ResumeAccessDeniedException("Not authorized to access this resume");
+		}
 
 		if (resume.getProcessingStatus() != ProcessingStatus.COMPLETED) {
 			throw new ResumeNotReadyException("Resume has not finished processing yet");

@@ -10,6 +10,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumematcher.backend.testsupport.AbstractMySqlIntegrationTest;
 import com.resumematcher.backend.testsupport.SyntheticDocuments;
+import com.resumematcher.backend.testsupport.TestAuthSupport;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -36,6 +38,12 @@ class ResumeMatchControllerSemanticIntegrationTest extends AbstractMySqlIntegrat
 	private EmbeddingClient embeddingClient;
 
 	private final ObjectMapper objectMapper = new ObjectMapper();
+	private String authHeader;
+
+	@BeforeEach
+	void authenticate() throws Exception {
+		authHeader = TestAuthSupport.registerAndGetAuthorizationHeader(mockMvc);
+	}
 
 	@Test
 	void usesTheSemanticScoreEndToEndWhenSemanticMatchingIsEnabled() throws Exception {
@@ -47,7 +55,8 @@ class ResumeMatchControllerSemanticIntegrationTest extends AbstractMySqlIntegrat
 		MockMultipartFile file = new MockMultipartFile("file", "resume.pdf", "application/pdf", content);
 
 		String uploadResponseBody = mockMvc.perform(
-						MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file))
+						MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file)
+								.header("Authorization", authHeader))
 				.andExpect(MockMvcResultMatchers.status().isCreated())
 				.andReturn().getResponse().getContentAsString();
 
@@ -57,6 +66,7 @@ class ResumeMatchControllerSemanticIntegrationTest extends AbstractMySqlIntegrat
 				+ "Kubernetes and AWS to help build and operate our cloud platform at scale.";
 
 		String matchResponseBody = mockMvc.perform(MockMvcRequestBuilders.post("/api/resumes/" + resumeId + "/match")
+						.header("Authorization", authHeader)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"jobDescription\":\"" + jobDescription + "\"}"))
 				.andExpect(MockMvcResultMatchers.status().isOk())
@@ -83,7 +93,8 @@ class ResumeMatchControllerSemanticIntegrationTest extends AbstractMySqlIntegrat
 		MockMultipartFile file = new MockMultipartFile("file", "resume.pdf", "application/pdf", content);
 
 		String uploadResponseBody = mockMvc.perform(
-						MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file))
+						MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file)
+								.header("Authorization", authHeader))
 				.andExpect(MockMvcResultMatchers.status().isCreated())
 				.andReturn().getResponse().getContentAsString();
 
@@ -93,6 +104,7 @@ class ResumeMatchControllerSemanticIntegrationTest extends AbstractMySqlIntegrat
 				+ "Kubernetes and AWS to help build and operate our cloud platform at scale.";
 
 		String matchResponseBody = mockMvc.perform(MockMvcRequestBuilders.post("/api/resumes/" + resumeId + "/match")
+						.header("Authorization", authHeader)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"jobDescription\":\"" + jobDescription + "\"}"))
 				.andExpect(MockMvcResultMatchers.status().isOk())

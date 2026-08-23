@@ -1,5 +1,6 @@
 package com.resumematcher.backend.ratelimit;
 
+import com.resumematcher.backend.security.CurrentUserProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -13,8 +14,9 @@ import org.springframework.context.annotation.Configuration;
 public class RateLimitingConfiguration {
 
 	@Bean
-	public RateLimitingFilter rateLimitingFilter(RateLimiterService rateLimiterService) {
-		return new RateLimitingFilter(rateLimiterService);
+	public RateLimitingFilter rateLimitingFilter(RateLimiterService rateLimiterService,
+			CurrentUserProvider currentUserProvider) {
+		return new RateLimitingFilter(rateLimiterService, currentUserProvider);
 	}
 
 }

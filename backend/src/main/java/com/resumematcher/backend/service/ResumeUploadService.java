@@ -7,6 +7,7 @@ import com.resumematcher.backend.entity.Resume;
 import com.resumematcher.backend.extraction.ResumeTextExtractionService;
 import com.resumematcher.backend.profile.ResumeProfileExtractionService;
 import com.resumematcher.backend.repository.ResumeRepository;
+import com.resumematcher.backend.security.CurrentUserProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -24,13 +25,16 @@ public class ResumeUploadService {
 	private final ResumeRepository resumeRepository;
 	private final ResumeTextExtractionService resumeTextExtractionService;
 	private final ResumeProfileExtractionService resumeProfileExtractionService;
+	private final CurrentUserProvider currentUserProvider;
 
 	public ResumeUploadService(ResumeRepository resumeRepository,
 			ResumeTextExtractionService resumeTextExtractionService,
-			ResumeProfileExtractionService resumeProfileExtractionService) {
+			ResumeProfileExtractionService resumeProfileExtractionService,
+			CurrentUserProvider currentUserProvider) {
 		this.resumeRepository = resumeRepository;
 		this.resumeTextExtractionService = resumeTextExtractionService;
 		this.resumeProfileExtractionService = resumeProfileExtractionService;
+		this.currentUserProvider = currentUserProvider;
 	}
 
 	public Resume upload(MultipartFile file) {
@@ -57,10 +61,17 @@ public class ResumeUploadService {
 			throw new InvalidResumeUploadException("Uploaded file exceeds the maximum allowed size");
 		}
 
+		// /api/resumes/upload requires authentication, so a missing user id here
+		// means the security configuration let an unauthenticated request through -
+		// a bug worth failing loudly on, not a case to degrade gracefully for.
+		String ownerId = currentUserProvider.getCurrentUserId()
+				.orElseThrow(() -> new IllegalStateException("Authenticated user id was not available during upload"));
+
 		Resume resume = new Resume();
 		resume.setOriginalFilename(cleanedFilename);
 		resume.setContentType(contentType);
 		resume.setFileSizeBytes(file.getSize());
+		resume.setOwnerId(ownerId);
 
 		Resume savedResume = resumeRepository.save(resume);
 

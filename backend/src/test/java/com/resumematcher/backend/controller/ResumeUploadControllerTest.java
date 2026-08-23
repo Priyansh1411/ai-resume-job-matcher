@@ -11,6 +11,8 @@ import com.resumematcher.backend.entity.Resume;
 import com.resumematcher.backend.repository.ResumeRepository;
 import com.resumematcher.backend.testsupport.AbstractMySqlIntegrationTest;
 import com.resumematcher.backend.testsupport.SyntheticDocuments;
+import com.resumematcher.backend.testsupport.TestAuthSupport;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -34,13 +36,21 @@ class ResumeUploadControllerTest extends AbstractMySqlIntegrationTest {
 	private ResumeRepository resumeRepository;
 
 	private final ObjectMapper objectMapper = new ObjectMapper();
+	private String authHeader;
+
+	@BeforeEach
+	void authenticate() throws Exception {
+		authHeader = TestAuthSupport.registerAndGetAuthorizationHeader(mockMvc);
+	}
 
 	@Test
 	void uploadsPdfResumeSuccessfully() throws Exception {
 		byte[] content = SyntheticDocuments.createSamplePdf("Synthetic resume content for testing");
 		MockMultipartFile file = new MockMultipartFile("file", "resume.pdf", "application/pdf", content);
 
-		String responseBody = mockMvc.perform(MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file))
+		String responseBody = mockMvc.perform(MockMvcRequestBuilders.multipart("/api/resumes/upload")
+						.file(file)
+						.header("Authorization", authHeader))
 				.andExpect(MockMvcResultMatchers.status().isCreated())
 				.andReturn().getResponse().getContentAsString();
 
@@ -60,6 +70,7 @@ class ResumeUploadControllerTest extends AbstractMySqlIntegrationTest {
 		assertThat(saved.get().getFileSizeBytes()).isEqualTo(content.length);
 		assertThat(saved.get().getProcessingStatus()).isEqualTo(ProcessingStatus.COMPLETED);
 		assertThat(saved.get().getExtractedText()).isNotBlank();
+		assertThat(saved.get().getOwnerId()).isNotBlank();
 	}
 
 	@Test
@@ -70,7 +81,9 @@ class ResumeUploadControllerTest extends AbstractMySqlIntegrationTest {
 				"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 				content);
 
-		String responseBody = mockMvc.perform(MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file))
+		String responseBody = mockMvc.perform(MockMvcRequestBuilders.multipart("/api/resumes/upload")
+						.file(file)
+						.header("Authorization", authHeader))
 				.andExpect(MockMvcResultMatchers.status().isCreated())
 				.andReturn().getResponse().getContentAsString();
 
@@ -94,7 +107,7 @@ class ResumeUploadControllerTest extends AbstractMySqlIntegrationTest {
 		byte[] corruptContent = "this is not a real pdf file".getBytes();
 		MockMultipartFile file = new MockMultipartFile("file", "resume.pdf", "application/pdf", corruptContent);
 
-		String responseBody = mockMvc.perform(MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file))
+		String responseBody = mockMvc.perform(MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file).header("Authorization", authHeader))
 				.andExpect(MockMvcResultMatchers.status().isCreated())
 				.andReturn().getResponse().getContentAsString();
 
@@ -117,7 +130,7 @@ class ResumeUploadControllerTest extends AbstractMySqlIntegrationTest {
 				"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 				corruptContent);
 
-		String responseBody = mockMvc.perform(MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file))
+		String responseBody = mockMvc.perform(MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file).header("Authorization", authHeader))
 				.andExpect(MockMvcResultMatchers.status().isCreated())
 				.andReturn().getResponse().getContentAsString();
 
@@ -138,7 +151,7 @@ class ResumeUploadControllerTest extends AbstractMySqlIntegrationTest {
 
 		MockMultipartFile file = new MockMultipartFile("file", "empty.pdf", "application/pdf", new byte[0]);
 
-		mockMvc.perform(MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file))
+		mockMvc.perform(MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file).header("Authorization", authHeader))
 				.andExpect(MockMvcResultMatchers.status().isBadRequest());
 
 		assertThat(resumeRepository.count()).isEqualTo(countBefore);
@@ -150,7 +163,7 @@ class ResumeUploadControllerTest extends AbstractMySqlIntegrationTest {
 
 		MockMultipartFile file = new MockMultipartFile("file", "resume.txt", "text/plain", "plain text".getBytes());
 
-		mockMvc.perform(MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file))
+		mockMvc.perform(MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file).header("Authorization", authHeader))
 				.andExpect(MockMvcResultMatchers.status().isBadRequest());
 
 		assertThat(resumeRepository.count()).isEqualTo(countBefore);
@@ -163,7 +176,7 @@ class ResumeUploadControllerTest extends AbstractMySqlIntegrationTest {
 		MockMultipartFile file = new MockMultipartFile(
 				"file", "../../resume.pdf", "application/pdf", "pdf content".getBytes());
 
-		MvcResult result = mockMvc.perform(MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file))
+		MvcResult result = mockMvc.perform(MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file).header("Authorization", authHeader))
 				.andReturn();
 
 		int status = result.getResponse().getStatus();

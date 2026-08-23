@@ -37,6 +37,9 @@ public class Resume {
 	@Column(name = "processing_status", nullable = false, length = 30)
 	private ProcessingStatus processingStatus;
 
+	@Column(name = "owner_id", length = 36)
+	private String ownerId;
+
 	@Column(name = "created_at", insertable = false, updatable = false)
 	private LocalDateTime createdAt;
 
@@ -102,6 +105,14 @@ public class Resume {
 
 	public void setProcessingStatus(ProcessingStatus processingStatus) {
 		this.processingStatus = processingStatus;
+	}
+
+	public String getOwnerId() {
+		return ownerId;
+	}
+
+	public void setOwnerId(String ownerId) {
+		this.ownerId = ownerId;
 	}
 
 	public LocalDateTime getCreatedAt() {

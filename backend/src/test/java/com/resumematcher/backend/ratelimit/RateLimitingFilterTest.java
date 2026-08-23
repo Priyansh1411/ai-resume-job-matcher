@@ -2,21 +2,38 @@ package com.resumematcher.backend.ratelimit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
+
 import com.resumematcher.backend.observability.RateLimitMetrics;
+import com.resumematcher.backend.security.CurrentUserProvider;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 class RateLimitingFilterTest {
 
 	private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+	private final CurrentUserProvider currentUserProvider = new CurrentUserProvider();
+
+	@AfterEach
+	void clearSecurityContext() {
+		SecurityContextHolder.clearContext();
+	}
 
 	private RateLimitingFilter newFilter(int generalRpm, int openAiRpm) {
 		RateLimiterService service =
 				new RateLimiterService(true, generalRpm, openAiRpm, new RateLimitMetrics(meterRegistry));
-		return new RateLimitingFilter(service);
+		return new RateLimitingFilter(service, currentUserProvider);
+	}
+
+	private void authenticateAs(String userId) {
+		SecurityContextHolder.getContext()
+				.setAuthentication(new UsernamePasswordAuthenticationToken(userId, null, List.of()));
 	}
 
 	@Test
@@ -109,6 +126,41 @@ class RateLimitingFilterTest {
 		filter.doFilter(request, response, new MockFilterChain());
 
 		assertThat(response.getStatus()).isEqualTo(200);
+	}
+
+	@Test
+	void usesTheAuthenticatedUserIdInsteadOfIpWhenAuthenticated() throws Exception {
+		RateLimitingFilter filter = newFilter(1, 10);
+
+		authenticateAs("user-A");
+		filter.doFilter(resumeRequest("GET", "/api/resumes/r1/profile", "192.168.1.1"),
+				new MockHttpServletResponse(), new MockFilterChain());
+
+		// Same IP, but a different authenticated user - must be an independent
+		// budget, proving the key is the user id, not the shared IP.
+		authenticateAs("user-B");
+		MockHttpServletResponse secondResponse = new MockHttpServletResponse();
+		filter.doFilter(resumeRequest("GET", "/api/resumes/r1/profile", "192.168.1.1"), secondResponse,
+				new MockFilterChain());
+
+		assertThat(secondResponse.getStatus()).isEqualTo(200);
+	}
+
+	@Test
+	void sharesOneBudgetForTheSameAuthenticatedUserAcrossDifferentIps() throws Exception {
+		RateLimitingFilter filter = newFilter(1, 10);
+
+		authenticateAs("user-A");
+		filter.doFilter(resumeRequest("GET", "/api/resumes/r1/profile", "192.168.1.1"),
+				new MockHttpServletResponse(), new MockFilterChain());
+
+		// Same authenticated user, different IP - still the same budget, so this
+		// is blocked even though the IP alone would look like a fresh client.
+		MockHttpServletResponse secondResponse = new MockHttpServletResponse();
+		filter.doFilter(resumeRequest("GET", "/api/resumes/r1/profile", "192.168.1.2"), secondResponse,
+				new MockFilterChain());
+
+		assertThat(secondResponse.getStatus()).isEqualTo(429);
 	}
 
 	private MockHttpServletRequest resumeRequest(String method, String uri, String remoteAddr) {

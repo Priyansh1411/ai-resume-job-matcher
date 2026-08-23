@@ -8,6 +8,7 @@ import com.resumematcher.backend.matching.MatchResult;
 import com.resumematcher.backend.matching.ResumeJobMatchService;
 import com.resumematcher.backend.matching.ResumeNotFoundException;
 import com.resumematcher.backend.matching.ResumeNotReadyException;
+import com.resumematcher.backend.security.ResumeAccessDeniedException;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -53,6 +54,11 @@ public class ResumeMatchController {
 	@ExceptionHandler(ResumeNotReadyException.class)
 	public ResponseEntity<Map<String, String>> handleNotReady(ResumeNotReadyException ex) {
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", ex.getMessage()));
+	}
+
+	@ExceptionHandler(ResumeAccessDeniedException.class)
+	public ResponseEntity<Map<String, String>> handleAccessDenied(ResumeAccessDeniedException ex) {
+		return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", ex.getMessage()));
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)

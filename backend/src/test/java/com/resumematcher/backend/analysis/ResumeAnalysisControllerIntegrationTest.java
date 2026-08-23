@@ -8,6 +8,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.resumematcher.backend.testsupport.AbstractMySqlIntegrationTest;
 import com.resumematcher.backend.testsupport.SyntheticDocuments;
+import com.resumematcher.backend.testsupport.TestAuthSupport;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -34,6 +36,12 @@ class ResumeAnalysisControllerIntegrationTest extends AbstractMySqlIntegrationTe
 	private OpenAiChatClient chatClient;
 
 	private final ObjectMapper objectMapper = new ObjectMapper();
+	private String authHeader;
+
+	@BeforeEach
+	void authenticate() throws Exception {
+		authHeader = TestAuthSupport.registerAndGetAuthorizationHeader(mockMvc);
+	}
 
 	@Test
 	void returnsTheParsedAnalysisEndToEndWhenEnabled() throws Exception {
@@ -42,11 +50,12 @@ class ResumeAnalysisControllerIntegrationTest extends AbstractMySqlIntegrationTe
 						+ "\"gaps\":[\"No AWS experience listed\"],"
 						+ "\"suggestions\":[\"Highlight cloud experience if any\"]}");
 
-		String resumeId = uploadSyntheticResume();
+		String resumeId = uploadSyntheticResume(authHeader);
 		String jobDescription = "We are looking for a backend engineer experienced with Java, "
 				+ "Kubernetes and AWS to help build and operate our cloud platform at scale.";
 
 		String responseBody = mockMvc.perform(MockMvcRequestBuilders.post("/api/resumes/" + resumeId + "/analysis")
+						.header("Authorization", authHeader)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"jobDescription\":\"" + jobDescription + "\"}"))
 				.andExpect(MockMvcResultMatchers.status().isOk())
@@ -63,23 +72,42 @@ class ResumeAnalysisControllerIntegrationTest extends AbstractMySqlIntegrationTe
 		when(chatClient.complete(anyString(), anyString()))
 				.thenThrow(new AnalysisUnavailableException("provider unreachable"));
 
-		String resumeId = uploadSyntheticResume();
+		String resumeId = uploadSyntheticResume(authHeader);
 		String jobDescription = "We are looking for a backend engineer experienced with Java, "
 				+ "Kubernetes and AWS to help build and operate our cloud platform at scale.";
 
 		mockMvc.perform(MockMvcRequestBuilders.post("/api/resumes/" + resumeId + "/analysis")
+						.header("Authorization", authHeader)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"jobDescription\":\"" + jobDescription + "\"}"))
 				.andExpect(MockMvcResultMatchers.status().isServiceUnavailable());
 	}
 
-	private String uploadSyntheticResume() throws Exception {
+	@Test
+	void rejectsAnalysisWhenTheAuthenticatedUserDoesNotOwnTheResume() throws Exception {
+		String resumeId = uploadSyntheticResume(authHeader);
+
+		// A second, different authenticated user - not the one who uploaded above.
+		String otherUserAuthHeader = TestAuthSupport.registerAndGetAuthorizationHeader(mockMvc);
+
+		String jobDescription = "We are looking for a backend engineer experienced with Java, "
+				+ "Kubernetes and AWS to help build and operate our cloud platform at scale.";
+
+		mockMvc.perform(MockMvcRequestBuilders.post("/api/resumes/" + resumeId + "/analysis")
+						.header("Authorization", otherUserAuthHeader)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"jobDescription\":\"" + jobDescription + "\"}"))
+				.andExpect(MockMvcResultMatchers.status().isForbidden());
+	}
+
+	private String uploadSyntheticResume(String authorizationHeader) throws Exception {
 		byte[] content = SyntheticDocuments.createSamplePdf(
 				"Jane Doe\njane.doe@example.com\nSkilled in Java, Docker and MySQL.");
 		MockMultipartFile file = new MockMultipartFile("file", "resume.pdf", "application/pdf", content);
 
 		String uploadResponseBody = mockMvc.perform(
-						MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file))
+						MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file)
+								.header("Authorization", authorizationHeader))
 				.andExpect(MockMvcResultMatchers.status().isCreated())
 				.andReturn().getResponse().getContentAsString();
 

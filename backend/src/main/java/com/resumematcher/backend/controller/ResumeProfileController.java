@@ -5,6 +5,7 @@ import java.util.Map;
 import com.resumematcher.backend.dto.ResumeProfileResponse;
 import com.resumematcher.backend.profile.ResumeProfileNotFoundException;
 import com.resumematcher.backend.profile.ResumeProfileQueryService;
+import com.resumematcher.backend.security.ResumeAccessDeniedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -29,6 +30,11 @@ public class ResumeProfileController {
 	@ExceptionHandler(ResumeProfileNotFoundException.class)
 	public ResponseEntity<Map<String, String>> handleNotFound(ResumeProfileNotFoundException ex) {
 		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", ex.getMessage()));
+	}
+
+	@ExceptionHandler(ResumeAccessDeniedException.class)
+	public ResponseEntity<Map<String, String>> handleAccessDenied(ResumeAccessDeniedException ex) {
+		return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", ex.getMessage()));
 	}
 
 }

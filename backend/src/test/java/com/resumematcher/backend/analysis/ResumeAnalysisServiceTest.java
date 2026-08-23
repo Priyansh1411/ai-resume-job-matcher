@@ -19,6 +19,8 @@ import com.resumematcher.backend.profile.SkillDictionary;
 import com.resumematcher.backend.profile.SkillKeywordMatcher;
 import com.resumematcher.backend.repository.ResumeRepository;
 import com.resumematcher.backend.repository.ResumeSkillRepository;
+import com.resumematcher.backend.security.CurrentUserProvider;
+import com.resumematcher.backend.security.ResumeAccessDeniedException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -40,13 +42,17 @@ class ResumeAnalysisServiceTest {
 	@Mock
 	private OpenAiChatClient chatClient;
 
+	@Mock
+	private CurrentUserProvider currentUserProvider;
+
 	private final KeywordResumeJobMatcher keywordResumeJobMatcher = new KeywordResumeJobMatcher(
 			new JobDescriptionRequirementParser(new SkillKeywordMatcher(new SkillDictionary())));
 
 	@Test
 	void throwsAnalysisUnavailableExceptionWhenDisabled() {
 		ResumeAnalysisService service = new ResumeAnalysisService(
-				false, resumeRepository, resumeSkillRepository, keywordResumeJobMatcher, chatClient);
+				false, resumeRepository, resumeSkillRepository, keywordResumeJobMatcher, chatClient,
+				currentUserProvider);
 
 		assertThatThrownBy(() -> service.analyze("resume-1", JOB_DESCRIPTION))
 				.isInstanceOf(AnalysisUnavailableException.class);
@@ -57,7 +63,8 @@ class ResumeAnalysisServiceTest {
 		when(resumeRepository.findById("missing-id")).thenReturn(Optional.empty());
 
 		ResumeAnalysisService service = new ResumeAnalysisService(
-				true, resumeRepository, resumeSkillRepository, keywordResumeJobMatcher, chatClient);
+				true, resumeRepository, resumeSkillRepository, keywordResumeJobMatcher, chatClient,
+				currentUserProvider);
 
 		assertThatThrownBy(() -> service.analyze("missing-id", JOB_DESCRIPTION))
 				.isInstanceOf(ResumeNotFoundException.class);
@@ -66,22 +73,43 @@ class ResumeAnalysisServiceTest {
 	@Test
 	void throwsResumeNotReadyExceptionWhenResumeStillProcessing() {
 		Resume resume = new Resume();
+		resume.setOwnerId("user-1");
 		resume.setProcessingStatus(ProcessingStatus.PROCESSING);
 		when(resumeRepository.findById("resume-1")).thenReturn(Optional.of(resume));
+		when(currentUserProvider.getCurrentUserId()).thenReturn(Optional.of("user-1"));
 
 		ResumeAnalysisService service = new ResumeAnalysisService(
-				true, resumeRepository, resumeSkillRepository, keywordResumeJobMatcher, chatClient);
+				true, resumeRepository, resumeSkillRepository, keywordResumeJobMatcher, chatClient,
+				currentUserProvider);
 
 		assertThatThrownBy(() -> service.analyze("resume-1", JOB_DESCRIPTION))
 				.isInstanceOf(ResumeNotReadyException.class);
 	}
 
 	@Test
+	void throwsAccessDeniedWhenTheCurrentUserDoesNotOwnTheResume() {
+		Resume resume = new Resume();
+		resume.setOwnerId("user-1");
+		resume.setProcessingStatus(ProcessingStatus.COMPLETED);
+		when(resumeRepository.findById("resume-1")).thenReturn(Optional.of(resume));
+		when(currentUserProvider.getCurrentUserId()).thenReturn(Optional.of("user-2"));
+
+		ResumeAnalysisService service = new ResumeAnalysisService(
+				true, resumeRepository, resumeSkillRepository, keywordResumeJobMatcher, chatClient,
+				currentUserProvider);
+
+		assertThatThrownBy(() -> service.analyze("resume-1", JOB_DESCRIPTION))
+				.isInstanceOf(ResumeAccessDeniedException.class);
+	}
+
+	@Test
 	void returnsTheParsedAnalysisOnSuccess() {
 		Resume resume = new Resume();
+		resume.setOwnerId("user-1");
 		resume.setProcessingStatus(ProcessingStatus.COMPLETED);
 		resume.setExtractedText("Skilled in Java and Docker.");
 		when(resumeRepository.findById("resume-1")).thenReturn(Optional.of(resume));
+		when(currentUserProvider.getCurrentUserId()).thenReturn(Optional.of("user-1"));
 		when(resumeSkillRepository.findByResumeId("resume-1")).thenReturn(List.of());
 		when(chatClient.complete(anyString(), anyString())).thenReturn(
 				"{\"strengths\":[\"Strong Java background\"],"
@@ -89,7 +117,8 @@ class ResumeAnalysisServiceTest {
 						+ "\"suggestions\":[\"Highlight cloud experience if any\"]}");
 
 		ResumeAnalysisService service = new ResumeAnalysisService(
-				true, resumeRepository, resumeSkillRepository, keywordResumeJobMatcher, chatClient);
+				true, resumeRepository, resumeSkillRepository, keywordResumeJobMatcher, chatClient,
+				currentUserProvider);
 
 		ResumeAnalysisResponse result = service.analyze("resume-1", JOB_DESCRIPTION);
 
@@ -101,14 +130,17 @@ class ResumeAnalysisServiceTest {
 	@Test
 	void throwsAnalysisUnavailableExceptionWhenTheModelResponseIsMalformed() {
 		Resume resume = new Resume();
+		resume.setOwnerId("user-1");
 		resume.setProcessingStatus(ProcessingStatus.COMPLETED);
 		resume.setExtractedText("Skilled in Java and Docker.");
 		when(resumeRepository.findById("resume-1")).thenReturn(Optional.of(resume));
+		when(currentUserProvider.getCurrentUserId()).thenReturn(Optional.of("user-1"));
 		when(resumeSkillRepository.findByResumeId("resume-1")).thenReturn(List.of());
 		when(chatClient.complete(anyString(), anyString())).thenReturn("not json");
 
 		ResumeAnalysisService service = new ResumeAnalysisService(
-				true, resumeRepository, resumeSkillRepository, keywordResumeJobMatcher, chatClient);
+				true, resumeRepository, resumeSkillRepository, keywordResumeJobMatcher, chatClient,
+				currentUserProvider);
 
 		assertThatThrownBy(() -> service.analyze("resume-1", JOB_DESCRIPTION))
 				.isInstanceOf(AnalysisUnavailableException.class);
@@ -117,14 +149,17 @@ class ResumeAnalysisServiceTest {
 	@Test
 	void throwsAnalysisUnavailableExceptionWhenTheModelResponseIsMissingAField() {
 		Resume resume = new Resume();
+		resume.setOwnerId("user-1");
 		resume.setProcessingStatus(ProcessingStatus.COMPLETED);
 		resume.setExtractedText("Skilled in Java and Docker.");
 		when(resumeRepository.findById("resume-1")).thenReturn(Optional.of(resume));
+		when(currentUserProvider.getCurrentUserId()).thenReturn(Optional.of("user-1"));
 		when(resumeSkillRepository.findByResumeId("resume-1")).thenReturn(List.of());
 		when(chatClient.complete(anyString(), anyString())).thenReturn("{\"strengths\":[]}");
 
 		ResumeAnalysisService service = new ResumeAnalysisService(
-				true, resumeRepository, resumeSkillRepository, keywordResumeJobMatcher, chatClient);
+				true, resumeRepository, resumeSkillRepository, keywordResumeJobMatcher, chatClient,
+				currentUserProvider);
 
 		assertThatThrownBy(() -> service.analyze("resume-1", JOB_DESCRIPTION))
 				.isInstanceOf(AnalysisUnavailableException.class);

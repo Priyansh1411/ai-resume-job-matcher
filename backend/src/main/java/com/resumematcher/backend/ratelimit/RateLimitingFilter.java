@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.resumematcher.backend.security.CurrentUserProvider;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,10 +30,12 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 	private static final Pattern OPENAI_TIER_PATH = Pattern.compile("^/api/resumes/[^/]+/(match|analysis)$");
 
 	private final RateLimiterService rateLimiterService;
+	private final CurrentUserProvider currentUserProvider;
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
-	public RateLimitingFilter(RateLimiterService rateLimiterService) {
+	public RateLimitingFilter(RateLimiterService rateLimiterService, CurrentUserProvider currentUserProvider) {
 		this.rateLimiterService = rateLimiterService;
+		this.currentUserProvider = currentUserProvider;
 	}
 
 	@Override
@@ -44,11 +47,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 			return;
 		}
 
-		// Deliberately uses only the socket's remote address, never a client-supplied
-		// header like X-Forwarded-For: this app isn't deployed behind a reverse proxy
-		// today, and trusting such a header would let a client bypass its own limit
-		// simply by sending a different value on each request.
-		String clientKey = request.getRemoteAddr();
+		String clientKey = resolveClientKey(request);
 
 		RateLimitDecision generalDecision = rateLimiterService.tryConsume(clientKey, RateLimitTier.GENERAL);
 		if (!generalDecision.allowed()) {
@@ -65,6 +64,18 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 		}
 
 		filterChain.doFilter(request, response);
+	}
+
+	// Authenticated requests are keyed by user id, not IP: many users can share
+	// one IP (NAT, offices, mobile carriers), which would otherwise let them
+	// unfairly share - and exhaust - a single budget now that /api/resumes/**
+	// requires authentication. Falls back to IP only when there's no
+	// authenticated principal - never a client-supplied header, for the same
+	// spoofing reason documented previously.
+	private String resolveClientKey(HttpServletRequest request) {
+		return currentUserProvider.getCurrentUserId()
+				.map(userId -> "user:" + userId)
+				.orElseGet(() -> "ip:" + request.getRemoteAddr());
 	}
 
 	private void writeRejection(HttpServletResponse response, long retryAfterSeconds) throws IOException {

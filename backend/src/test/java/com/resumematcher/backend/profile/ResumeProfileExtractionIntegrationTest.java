@@ -14,6 +14,8 @@ import com.resumematcher.backend.repository.ResumeProfileRepository;
 import com.resumematcher.backend.repository.ResumeSkillRepository;
 import com.resumematcher.backend.testsupport.AbstractMySqlIntegrationTest;
 import com.resumematcher.backend.testsupport.SyntheticDocuments;
+import com.resumematcher.backend.testsupport.TestAuthSupport;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -39,6 +41,12 @@ class ResumeProfileExtractionIntegrationTest extends AbstractMySqlIntegrationTes
 	private ResumeSkillRepository resumeSkillRepository;
 
 	private final ObjectMapper objectMapper = new ObjectMapper();
+	private String authHeader;
+
+	@BeforeEach
+	void authenticate() throws Exception {
+		authHeader = TestAuthSupport.registerAndGetAuthorizationHeader(mockMvc);
+	}
 
 	@Test
 	void uploadingResumeWithRecognizableTextCreatesCompletedProfileAndSkills() throws Exception {
@@ -46,7 +54,8 @@ class ResumeProfileExtractionIntegrationTest extends AbstractMySqlIntegrationTes
 				"Jane Doe jane.doe@example.com Skilled in Java, Docker and MySQL.");
 		MockMultipartFile file = new MockMultipartFile("file", "resume.pdf", "application/pdf", content);
 
-		String responseBody = mockMvc.perform(MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file))
+		String responseBody = mockMvc.perform(MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file)
+						.header("Authorization", authHeader))
 				.andExpect(MockMvcResultMatchers.status().isCreated())
 				.andReturn().getResponse().getContentAsString();
 
@@ -67,7 +76,8 @@ class ResumeProfileExtractionIntegrationTest extends AbstractMySqlIntegrationTes
 		byte[] corruptContent = "this is not a real pdf file".getBytes();
 		MockMultipartFile file = new MockMultipartFile("file", "resume.pdf", "application/pdf", corruptContent);
 
-		String responseBody = mockMvc.perform(MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file))
+		String responseBody = mockMvc.perform(MockMvcRequestBuilders.multipart("/api/resumes/upload").file(file)
+						.header("Authorization", authHeader))
 				.andExpect(MockMvcResultMatchers.status().isCreated())
 				.andReturn().getResponse().getContentAsString();
 

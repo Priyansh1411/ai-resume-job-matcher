@@ -8,6 +8,7 @@ import com.resumematcher.backend.dto.AnalysisRequest;
 import com.resumematcher.backend.dto.ResumeAnalysisResponse;
 import com.resumematcher.backend.matching.ResumeNotFoundException;
 import com.resumematcher.backend.matching.ResumeNotReadyException;
+import com.resumematcher.backend.security.ResumeAccessDeniedException;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -47,6 +48,11 @@ public class ResumeAnalysisController {
 	@ExceptionHandler(AnalysisUnavailableException.class)
 	public ResponseEntity<Map<String, String>> handleUnavailable(AnalysisUnavailableException ex) {
 		return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("error", ex.getMessage()));
+	}
+
+	@ExceptionHandler(ResumeAccessDeniedException.class)
+	public ResponseEntity<Map<String, String>> handleAccessDenied(ResumeAccessDeniedException ex) {
+		return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", ex.getMessage()));
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)
