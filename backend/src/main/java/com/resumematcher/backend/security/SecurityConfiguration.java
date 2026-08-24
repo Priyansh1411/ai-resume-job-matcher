@@ -8,6 +8,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
 
 /**
  * Phase 2 of the authentication milestone: /api/resumes/** now requires
@@ -46,6 +47,15 @@ public class SecurityConfiguration {
 				.exceptionHandling(exceptions -> exceptions
 						.authenticationEntryPoint(new JsonAuthenticationEntryPoint())
 						.accessDeniedHandler(new JsonAccessDeniedHandler()))
+				// Referrer-Policy isn't part of Spring Security's default header set,
+				// unlike X-Content-Type-Options/X-Frame-Options/X-XSS-Protection, which
+				// are already on by default with no configuration needed and so don't
+				// appear anywhere in this file. STRICT_ORIGIN_WHEN_CROSS_ORIGIN matches
+				// what modern browsers already do absent any policy, so this makes the
+				// app's intent explicit and keeps behavior consistent on older browsers
+				// too, rather than changing what's actually sent.
+				.headers(headers -> headers.referrerPolicy(
+						referrerPolicy -> referrerPolicy.policy(ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN)))
 				.addFilterBefore(new JwtAuthenticationFilter(jwtService, tokenRevocationService),
 						UsernamePasswordAuthenticationFilter.class);
 
