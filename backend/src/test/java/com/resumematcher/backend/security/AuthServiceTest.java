@@ -3,6 +3,8 @@ package com.resumematcher.backend.security;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -113,6 +115,25 @@ class AuthServiceTest {
 		assertThatThrownBy(() -> authService.login("nobody@example.com", "anything"))
 				.isInstanceOf(InvalidCredentialsException.class)
 				.hasMessage("Invalid email or password");
+	}
+
+	@Test
+	void performsAPasswordComparisonEvenWhenTheEmailIsUnknown() {
+		// Not a timing assertion (flaky in CI) - instead, a precise, non-flaky proof
+		// of the actual guarantee the fix provides: a mocked encoder lets us verify
+		// the comparison happens at all, rather than the unknown-email branch
+		// returning immediately after the repository lookup with no comparable cost
+		// paid. That's what closes the timing side-channel - see DUMMY_PASSWORD_HASH's
+		// comment in AuthService.
+		PasswordEncoder mockPasswordEncoder = mock(PasswordEncoder.class);
+		AuthService serviceWithMockEncoder = new AuthService(userRepository, mockPasswordEncoder, jwtService,
+				tokenRevocationService, rateLimiterService);
+		when(userRepository.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> serviceWithMockEncoder.login("nobody@example.com", "anything"))
+				.isInstanceOf(InvalidCredentialsException.class);
+
+		verify(mockPasswordEncoder).matches(eq("anything"), any());
 	}
 
 	@Test

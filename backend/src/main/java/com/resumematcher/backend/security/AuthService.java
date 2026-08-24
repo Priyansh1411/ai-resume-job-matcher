@@ -16,6 +16,17 @@ public class AuthService {
 
 	private static final String ACCOUNT_KEY_PREFIX = "account:";
 
+	// A BCrypt hash of an arbitrary fixed string - never a real password, never
+	// used to authenticate anyone. Compared against on the "email not found" path
+	// in login() purely to burn the same CPU cost paid by a real password check,
+	// so response time can't be used to tell "no such account" apart from "wrong
+	// password" the way the response body already deliberately can't (see the
+	// comment below). Without this, BCrypt's own deliberate slowness becomes a
+	// timing side-channel: a fast reply means the email doesn't exist, a slow one
+	// means it does.
+	private static final String DUMMY_PASSWORD_HASH =
+			"$2a$10$acfQKQOtYKRa9awgqrtBTuxhwEfw1WJ/5sHtQqdBPLbk6lYZGydna";
+
 	private final UserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final JwtService jwtService;
@@ -58,12 +69,16 @@ public class AuthService {
 			throw new RateLimitExceededException(decision.retryAfterSeconds());
 		}
 
-		User user = userRepository.findByEmail(email)
-				.orElseThrow(() -> new InvalidCredentialsException("Invalid email or password"));
+		User user = userRepository.findByEmail(email).orElse(null);
+		if (user == null) {
+			// Discarded - see DUMMY_PASSWORD_HASH's comment. Same error message and
+			// code path as the "wrong password" case below either way; distinguishing
+			// them in the response (or, without this, in response time) would let a
+			// caller enumerate which emails have accounts.
+			passwordEncoder.matches(password, DUMMY_PASSWORD_HASH);
+			throw new InvalidCredentialsException("Invalid email or password");
+		}
 
-		// Same error message and code path as the "user not found" case above -
-		// distinguishing them in the response would let a caller enumerate which
-		// emails have accounts.
 		if (!passwordEncoder.matches(password, user.getPasswordHash())) {
 			throw new InvalidCredentialsException("Invalid email or password");
 		}
