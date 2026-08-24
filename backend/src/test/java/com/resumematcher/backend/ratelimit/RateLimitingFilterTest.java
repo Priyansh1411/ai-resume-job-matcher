@@ -27,7 +27,7 @@ class RateLimitingFilterTest {
 
 	private RateLimitingFilter newFilter(int generalRpm, int openAiRpm) {
 		RateLimiterService service =
-				new RateLimiterService(true, generalRpm, openAiRpm, 5, 3, new RateLimitMetrics(meterRegistry));
+				new RateLimiterService(true, generalRpm, openAiRpm, 5, 3, 5, new RateLimitMetrics(meterRegistry));
 		return new RateLimitingFilter(service, currentUserProvider);
 	}
 

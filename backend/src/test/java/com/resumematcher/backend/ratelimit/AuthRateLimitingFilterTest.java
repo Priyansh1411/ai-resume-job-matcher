@@ -15,7 +15,7 @@ class AuthRateLimitingFilterTest {
 
 	private AuthRateLimitingFilter newFilter(int loginRpm, int registerRpm) {
 		RateLimiterService service =
-				new RateLimiterService(true, 100, 100, loginRpm, registerRpm, new RateLimitMetrics(meterRegistry));
+				new RateLimiterService(true, 100, 100, loginRpm, registerRpm, 100, new RateLimitMetrics(meterRegistry));
 		return new AuthRateLimitingFilter(service);
 	}
 

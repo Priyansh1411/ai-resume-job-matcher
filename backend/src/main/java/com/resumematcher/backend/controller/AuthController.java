@@ -10,6 +10,7 @@ import com.resumematcher.backend.security.DuplicateEmailException;
 import com.resumematcher.backend.security.InvalidCredentialsException;
 import com.resumematcher.backend.security.JwtClaims;
 import com.resumematcher.backend.security.JwtService;
+import com.resumematcher.backend.security.RateLimitExceededException;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -70,6 +71,17 @@ public class AuthController {
 	@ExceptionHandler(InvalidCredentialsException.class)
 	public ResponseEntity<Map<String, String>> handleInvalidCredentials(InvalidCredentialsException ex) {
 		return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", ex.getMessage()));
+	}
+
+	// Same status, header, and body shape as the filter-level rejections in the
+	// ratelimit package (RateLimitingFilter/AuthRateLimitingFilter), so a caller
+	// can't tell whether a 429 came from the per-IP filter or this per-account
+	// check - and, more importantly, the body never reveals which one fired.
+	@ExceptionHandler(RateLimitExceededException.class)
+	public ResponseEntity<Map<String, String>> handleRateLimitExceeded(RateLimitExceededException ex) {
+		return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+				.header("Retry-After", String.valueOf(ex.getRetryAfterSeconds()))
+				.body(Map.of("error", ex.getMessage()));
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)

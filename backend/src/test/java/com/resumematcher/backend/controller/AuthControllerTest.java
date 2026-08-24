@@ -14,6 +14,7 @@ import com.resumematcher.backend.security.DuplicateEmailException;
 import com.resumematcher.backend.security.InvalidCredentialsException;
 import com.resumematcher.backend.security.JwtClaims;
 import com.resumematcher.backend.security.JwtService;
+import com.resumematcher.backend.security.RateLimitExceededException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -89,6 +90,20 @@ class AuthControllerTest {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"email\":\"jane@example.com\",\"password\":\"wrong-password\"}"))
 				.andExpect(MockMvcResultMatchers.status().isUnauthorized());
+	}
+
+	@Test
+	void loginReturnsTooManyRequestsWithRetryAfterWhenThePerAccountBudgetIsExceeded() throws Exception {
+		when(authService.login("jane@example.com", "correct-horse"))
+				.thenThrow(new RateLimitExceededException(42));
+
+		mockMvc.perform(MockMvcRequestBuilders.post("/api/auth/login")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"email\":\"jane@example.com\",\"password\":\"correct-horse\"}"))
+				.andExpect(MockMvcResultMatchers.status().isTooManyRequests())
+				.andExpect(MockMvcResultMatchers.header().string("Retry-After", "42"))
+				.andExpect(MockMvcResultMatchers.jsonPath("$.error")
+						.value("Too many requests. Please try again later."));
 	}
 
 	@Test
