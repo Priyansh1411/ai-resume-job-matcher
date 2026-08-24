@@ -12,10 +12,12 @@ import java.util.Set;
 import com.resumematcher.backend.entity.ProcessingStatus;
 import com.resumematcher.backend.entity.Resume;
 import com.resumematcher.backend.entity.ResumeSkill;
+import com.resumematcher.backend.observability.ResumeProcessingMetrics;
 import com.resumematcher.backend.repository.ResumeRepository;
 import com.resumematcher.backend.repository.ResumeSkillRepository;
 import com.resumematcher.backend.security.CurrentUserProvider;
 import com.resumematcher.backend.security.ResumeAccessDeniedException;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -36,6 +38,9 @@ class ResumeJobMatchServiceTest {
 	@Mock
 	private CurrentUserProvider currentUserProvider;
 
+	private final ResumeProcessingMetrics resumeProcessingMetrics =
+			new ResumeProcessingMetrics(new SimpleMeterRegistry());
+
 	@Test
 	void delegatesToMatcherWithResumeSkillsWhenResumeIsCompleted() {
 		Resume resume = new Resume();
@@ -53,7 +58,8 @@ class ResumeJobMatchServiceTest {
 						Set.of("java"), Set.of("aws"), Set.of(), Set.of()));
 
 		ResumeJobMatchService service = new ResumeJobMatchService(
-				resumeRepository, resumeSkillRepository, resumeJobMatcher, currentUserProvider);
+				resumeRepository, resumeSkillRepository, resumeJobMatcher, currentUserProvider,
+				resumeProcessingMetrics);
 
 		MatchResult result = service.matchResumeToJobDescription("resume-1", "job text");
 
@@ -71,7 +77,8 @@ class ResumeJobMatchServiceTest {
 		when(resumeRepository.findById("missing-id")).thenReturn(Optional.empty());
 
 		ResumeJobMatchService service = new ResumeJobMatchService(
-				resumeRepository, resumeSkillRepository, resumeJobMatcher, currentUserProvider);
+				resumeRepository, resumeSkillRepository, resumeJobMatcher, currentUserProvider,
+				resumeProcessingMetrics);
 
 		assertThatThrownBy(() -> service.matchResumeToJobDescription("missing-id", "job text"))
 				.isInstanceOf(ResumeNotFoundException.class);
@@ -87,7 +94,8 @@ class ResumeJobMatchServiceTest {
 		when(currentUserProvider.getCurrentUserId()).thenReturn(Optional.of("user-2"));
 
 		ResumeJobMatchService service = new ResumeJobMatchService(
-				resumeRepository, resumeSkillRepository, resumeJobMatcher, currentUserProvider);
+				resumeRepository, resumeSkillRepository, resumeJobMatcher, currentUserProvider,
+				resumeProcessingMetrics);
 
 		assertThatThrownBy(() -> service.matchResumeToJobDescription("resume-2", "job text"))
 				.isInstanceOf(ResumeNotReadyException.class);
@@ -103,7 +111,8 @@ class ResumeJobMatchServiceTest {
 		when(currentUserProvider.getCurrentUserId()).thenReturn(Optional.of("user-2"));
 
 		ResumeJobMatchService service = new ResumeJobMatchService(
-				resumeRepository, resumeSkillRepository, resumeJobMatcher, currentUserProvider);
+				resumeRepository, resumeSkillRepository, resumeJobMatcher, currentUserProvider,
+				resumeProcessingMetrics);
 
 		assertThatThrownBy(() -> service.matchResumeToJobDescription("resume-1", "job text"))
 				.isInstanceOf(ResumeAccessDeniedException.class);
@@ -119,7 +128,8 @@ class ResumeJobMatchServiceTest {
 		when(currentUserProvider.getCurrentUserId()).thenReturn(Optional.empty());
 
 		ResumeJobMatchService service = new ResumeJobMatchService(
-				resumeRepository, resumeSkillRepository, resumeJobMatcher, currentUserProvider);
+				resumeRepository, resumeSkillRepository, resumeJobMatcher, currentUserProvider,
+				resumeProcessingMetrics);
 
 		assertThatThrownBy(() -> service.matchResumeToJobDescription("resume-1", "job text"))
 				.isInstanceOf(ResumeAccessDeniedException.class);
