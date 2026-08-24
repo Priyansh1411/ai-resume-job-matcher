@@ -28,6 +28,7 @@ class AuthServiceTest {
 
 	private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 	private final JwtService jwtService = new JwtService("test-only-jwt-signing-secret-must-be-at-least-32-bytes", 24);
+	private final TokenRevocationService tokenRevocationService = new TokenRevocationService();
 
 	private AuthService authService;
 
@@ -36,7 +37,7 @@ class AuthServiceTest {
 		// Constructed here, not as a field initializer: @Mock fields are injected by
 		// MockitoExtension after the test instance is created, so building authService
 		// as a field initializer would capture a still-null userRepository.
-		authService = new AuthService(userRepository, passwordEncoder, jwtService);
+		authService = new AuthService(userRepository, passwordEncoder, jwtService, tokenRevocationService);
 	}
 
 	@Test
@@ -51,7 +52,7 @@ class AuthServiceTest {
 		AuthResponse response = authService.register("jane@example.com", "correct-horse");
 
 		assertThat(response.token()).isNotBlank();
-		assertThat(jwtService.validateAndGetUserId(response.token())).contains("user-1");
+		assertThat(jwtService.validateAndGetClaims(response.token()).map(JwtClaims::userId)).contains("user-1");
 
 		ArgumentCaptor<User> savedUser = ArgumentCaptor.forClass(User.class);
 		verify(userRepository).save(savedUser.capture());
@@ -80,7 +81,7 @@ class AuthServiceTest {
 
 		AuthResponse response = authService.login("jane@example.com", "correct-horse");
 
-		assertThat(jwtService.validateAndGetUserId(response.token())).contains("user-1");
+		assertThat(jwtService.validateAndGetClaims(response.token()).map(JwtClaims::userId)).contains("user-1");
 	}
 
 	@Test
@@ -102,6 +103,17 @@ class AuthServiceTest {
 		assertThatThrownBy(() -> authService.login("nobody@example.com", "anything"))
 				.isInstanceOf(InvalidCredentialsException.class)
 				.hasMessage("Invalid email or password");
+	}
+
+	@Test
+	void logoutRevokesTheTokenSoItIsNoLongerValid() {
+		String token = jwtService.generateToken("user-1");
+		JwtClaims claims = jwtService.validateAndGetClaims(token).orElseThrow();
+		assertThat(tokenRevocationService.isRevoked(claims.tokenId())).isFalse();
+
+		authService.logout(claims);
+
+		assertThat(tokenRevocationService.isRevoked(claims.tokenId())).isTrue();
 	}
 
 }

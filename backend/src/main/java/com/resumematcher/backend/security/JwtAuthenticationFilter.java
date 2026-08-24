@@ -14,8 +14,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Parses a Bearer JWT if present and populates the SecurityContext with the
- * authenticated user id. Never rejects a request itself - which endpoints
- * require authentication is SecurityConfiguration's job, not this filter's.
+ * authenticated user id - unless the token has been logged out, in which case
+ * it's treated exactly like an expired or malformed one (SecurityContext left
+ * empty). Never rejects a request itself - which endpoints require
+ * authentication is SecurityConfiguration's job, not this filter's.
  *
  * <p>Not a {@code @Component}: registered explicitly inside SecurityConfiguration's
  * filter chain instead, matching how RateLimitingFilter avoids @WebMvcTest slice
@@ -26,9 +28,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	private static final String BEARER_PREFIX = "Bearer ";
 
 	private final JwtService jwtService;
+	private final TokenRevocationService tokenRevocationService;
 
-	public JwtAuthenticationFilter(JwtService jwtService) {
+	public JwtAuthenticationFilter(JwtService jwtService, TokenRevocationService tokenRevocationService) {
 		this.jwtService = jwtService;
+		this.tokenRevocationService = tokenRevocationService;
 	}
 
 	@Override
@@ -38,9 +42,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 		if (header != null && header.startsWith(BEARER_PREFIX)) {
 			String token = header.substring(BEARER_PREFIX.length());
-			Optional<String> userId = jwtService.validateAndGetUserId(token);
-			userId.ifPresent(id -> SecurityContextHolder.getContext()
-					.setAuthentication(new UsernamePasswordAuthenticationToken(id, null, List.of())));
+			Optional<JwtClaims> claims = jwtService.validateAndGetClaims(token);
+			claims.filter(c -> !tokenRevocationService.isRevoked(c.tokenId()))
+					.ifPresent(c -> SecurityContextHolder.getContext()
+							.setAuthentication(new UsernamePasswordAuthenticationToken(c.userId(), null, List.of())));
 		}
 
 		filterChain.doFilter(request, response);

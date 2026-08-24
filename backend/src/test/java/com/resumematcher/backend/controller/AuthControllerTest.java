@@ -1,11 +1,19 @@
 package com.resumematcher.backend.controller;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import java.time.Instant;
+import java.util.Optional;
 
 import com.resumematcher.backend.dto.AuthResponse;
 import com.resumematcher.backend.security.AuthService;
 import com.resumematcher.backend.security.DuplicateEmailException;
 import com.resumematcher.backend.security.InvalidCredentialsException;
+import com.resumematcher.backend.security.JwtClaims;
+import com.resumematcher.backend.security.JwtService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -21,8 +29,14 @@ class AuthControllerTest {
 	@Autowired
 	private MockMvc mockMvc;
 
+	@Autowired
+	private AuthController authController;
+
 	@MockitoBean
 	private AuthService authService;
+
+	@MockitoBean
+	private JwtService jwtService;
 
 	@Test
 	void registerReturnsCreatedWithAToken() throws Exception {
@@ -75,6 +89,35 @@ class AuthControllerTest {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"email\":\"jane@example.com\",\"password\":\"wrong-password\"}"))
 				.andExpect(MockMvcResultMatchers.status().isUnauthorized());
+	}
+
+	@Test
+	void logoutReturnsNoContentAndRevokesTheTokenWhenTheTokenIsValid() throws Exception {
+		JwtClaims claims = new JwtClaims("user-1", "jti-1", Instant.now().plusSeconds(60));
+		when(jwtService.validateAndGetClaims("valid-token")).thenReturn(Optional.of(claims));
+
+		mockMvc.perform(MockMvcRequestBuilders.post("/api/auth/logout")
+						.header("Authorization", "Bearer valid-token"))
+				.andExpect(MockMvcResultMatchers.status().isNoContent());
+
+		verify(authService).logout(eq(claims));
+	}
+
+	@Test
+	void logoutFailsLoudlyIfItSomehowReceivesATokenThatDoesNotValidate() {
+		// Unreachable in real traffic - /api/auth/logout requires authentication, so
+		// SecurityConfiguration would already have rejected this with a 401 before the
+		// controller ever ran. Called directly rather than through MockMvc: an
+		// uncaught exception here doesn't turn into an HTTP response within MockMvc's
+		// simulated dispatch (that translation only happens in a real servlet
+		// container), it propagates as a wrapped ServletException instead - so calling
+		// the controller method directly is the more direct way to prove this guard
+		// clause actually fires.
+		when(jwtService.validateAndGetClaims("not-a-real-token")).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> authController.logout("Bearer not-a-real-token"))
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessage("Authenticated request reached the logout endpoint without valid claims");
 	}
 
 }

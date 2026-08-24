@@ -1,4 +1,5 @@
 import { extractErrorMessage } from './apiErrors'
+import { protectedFetch } from './apiClient'
 
 export type AuthResult = {
   token: string
@@ -54,4 +55,14 @@ export function registerUser(email: string, password: string): Promise<AuthResul
 
 export function loginUser(email: string, password: string): Promise<AuthResult> {
   return requestToken('/api/auth/login', email, password, 'Could not log in. Please try again.')
+}
+
+export async function logoutUser(): Promise<void> {
+  try {
+    await protectedFetch('/api/auth/logout', { method: 'POST' })
+  } catch {
+    // Best-effort: the caller clears local state regardless of whether this
+    // network call succeeds, so a failure here (offline, server down, token
+    // already invalid) must never block the user from logging out locally.
+  }
 }

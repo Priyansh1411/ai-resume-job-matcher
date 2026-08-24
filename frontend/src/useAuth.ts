@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { localStorageTokenStorage } from './tokenStorage'
 import type { TokenStorage } from './tokenStorage'
-import { AuthError, loginUser, registerUser } from './authApi'
+import { AuthError, loginUser, logoutUser, registerUser } from './authApi'
 
 export type AuthMode = 'login' | 'register'
 
@@ -31,6 +31,12 @@ export function useAuth(tokenStorage: TokenStorage = localStorageTokenStorage) {
   )
 
   const logout = useCallback(() => {
+    // Fire before clearing the token: logoutUser() reads it from storage
+    // synchronously (before its first await), so calling it first guarantees
+    // the server-side revocation request actually carries the token, even
+    // though we don't wait for it - a network failure here must never block
+    // the user from logging out locally.
+    void logoutUser()
     tokenStorage.clearToken()
     setToken(null)
     setErrorMessage(null)

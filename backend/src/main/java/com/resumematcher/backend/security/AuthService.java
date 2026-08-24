@@ -12,11 +12,14 @@ public class AuthService {
 	private final UserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final JwtService jwtService;
+	private final TokenRevocationService tokenRevocationService;
 
-	public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService) {
+	public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService,
+			TokenRevocationService tokenRevocationService) {
 		this.userRepository = userRepository;
 		this.passwordEncoder = passwordEncoder;
 		this.jwtService = jwtService;
+		this.tokenRevocationService = tokenRevocationService;
 	}
 
 	public AuthResponse register(String email, String password) {
@@ -44,6 +47,10 @@ public class AuthService {
 		}
 
 		return new AuthResponse(jwtService.generateToken(user.getId()));
+	}
+
+	public void logout(JwtClaims claims) {
+		tokenRevocationService.revoke(claims.tokenId(), claims.expiresAt());
 	}
 
 }

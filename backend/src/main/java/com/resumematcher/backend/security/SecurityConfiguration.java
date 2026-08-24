@@ -20,9 +20,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfiguration {
 
 	private final JwtService jwtService;
+	private final TokenRevocationService tokenRevocationService;
 
-	public SecurityConfiguration(JwtService jwtService) {
+	public SecurityConfiguration(JwtService jwtService, TokenRevocationService tokenRevocationService) {
 		this.jwtService = jwtService;
+		this.tokenRevocationService = tokenRevocationService;
 	}
 
 	@Bean
@@ -37,13 +39,15 @@ public class SecurityConfiguration {
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+						.requestMatchers("/api/auth/logout").authenticated()
 						.requestMatchers("/api/health", "/api/database/health").permitAll()
 						.requestMatchers("/api/resumes/**").authenticated()
 						.anyRequest().permitAll())
 				.exceptionHandling(exceptions -> exceptions
 						.authenticationEntryPoint(new JsonAuthenticationEntryPoint())
 						.accessDeniedHandler(new JsonAccessDeniedHandler()))
-				.addFilterBefore(new JwtAuthenticationFilter(jwtService), UsernamePasswordAuthenticationFilter.class);
+				.addFilterBefore(new JwtAuthenticationFilter(jwtService, tokenRevocationService),
+						UsernamePasswordAuthenticationFilter.class);
 
 		return http.build();
 	}
