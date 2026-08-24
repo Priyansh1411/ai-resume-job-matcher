@@ -13,7 +13,7 @@ class RateLimiterServiceTest {
 
 	@Test
 	void blocksTheSameClientAfterItExhaustsItsLimit() {
-		RateLimiterService service = new RateLimiterService(true, 2, 10, rateLimitMetrics);
+		RateLimiterService service = new RateLimiterService(true, 2, 10, 5, 3, rateLimitMetrics);
 
 		assertThat(service.tryConsume("192.168.1.1", RateLimitTier.GENERAL).allowed()).isTrue();
 		assertThat(service.tryConsume("192.168.1.1", RateLimitTier.GENERAL).allowed()).isTrue();
@@ -22,7 +22,7 @@ class RateLimiterServiceTest {
 
 	@Test
 	void isolatesDifferentClientsFromEachOther() {
-		RateLimiterService service = new RateLimiterService(true, 1, 10, rateLimitMetrics);
+		RateLimiterService service = new RateLimiterService(true, 1, 10, 5, 3, rateLimitMetrics);
 
 		assertThat(service.tryConsume("192.168.1.1", RateLimitTier.GENERAL).allowed()).isTrue();
 		assertThat(service.tryConsume("192.168.1.1", RateLimitTier.GENERAL).allowed()).isFalse();
@@ -33,7 +33,7 @@ class RateLimiterServiceTest {
 
 	@Test
 	void tracksTheGeneralAndOpenAiTiersAsIndependentBudgets() {
-		RateLimiterService service = new RateLimiterService(true, 1, 1, rateLimitMetrics);
+		RateLimiterService service = new RateLimiterService(true, 1, 1, 5, 3, rateLimitMetrics);
 
 		assertThat(service.tryConsume("192.168.1.1", RateLimitTier.GENERAL).allowed()).isTrue();
 		assertThat(service.tryConsume("192.168.1.1", RateLimitTier.GENERAL).allowed()).isFalse();
@@ -44,7 +44,7 @@ class RateLimiterServiceTest {
 
 	@Test
 	void allowsEveryRequestWhenDisabled() {
-		RateLimiterService service = new RateLimiterService(false, 1, 1, rateLimitMetrics);
+		RateLimiterService service = new RateLimiterService(false, 1, 1, 5, 3, rateLimitMetrics);
 
 		for (int i = 0; i < 5; i++) {
 			assertThat(service.tryConsume("192.168.1.1", RateLimitTier.GENERAL).allowed()).isTrue();
@@ -53,7 +53,7 @@ class RateLimiterServiceTest {
 
 	@Test
 	void recordsAllowedAndRejectedMetricsTaggedByTier() {
-		RateLimiterService service = new RateLimiterService(true, 1, 10, rateLimitMetrics);
+		RateLimiterService service = new RateLimiterService(true, 1, 10, 5, 3, rateLimitMetrics);
 
 		service.tryConsume("192.168.1.1", RateLimitTier.GENERAL);
 		service.tryConsume("192.168.1.1", RateLimitTier.GENERAL);
@@ -64,7 +64,7 @@ class RateLimiterServiceTest {
 
 	@Test
 	void includesARetryAfterEstimateWhenRejected() {
-		RateLimiterService service = new RateLimiterService(true, 1, 10, rateLimitMetrics);
+		RateLimiterService service = new RateLimiterService(true, 1, 10, 5, 3, rateLimitMetrics);
 
 		service.tryConsume("192.168.1.1", RateLimitTier.GENERAL);
 		RateLimitDecision rejected = service.tryConsume("192.168.1.1", RateLimitTier.GENERAL);

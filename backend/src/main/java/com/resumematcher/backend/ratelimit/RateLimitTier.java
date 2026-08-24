@@ -2,5 +2,7 @@ package com.resumematcher.backend.ratelimit;
 
 public enum RateLimitTier {
 	GENERAL,
-	OPENAI
+	OPENAI,
+	AUTH_LOGIN,
+	AUTH_REGISTER
 }

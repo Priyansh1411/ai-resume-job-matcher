@@ -22,19 +22,27 @@ public class RateLimiterService {
 	private final boolean enabled;
 	private final int generalRequestsPerMinute;
 	private final int openAiRequestsPerMinute;
+	private final int authLoginRequestsPerMinute;
+	private final int authRegisterRequestsPerMinute;
 	private final RateLimitMetrics rateLimitMetrics;
 
 	private final ConcurrentHashMap<String, Bucket> generalBuckets = new ConcurrentHashMap<>();
 	private final ConcurrentHashMap<String, Bucket> openAiBuckets = new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<String, Bucket> authLoginBuckets = new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<String, Bucket> authRegisterBuckets = new ConcurrentHashMap<>();
 
 	public RateLimiterService(
 			@Value("${rate-limit.enabled:true}") boolean enabled,
 			@Value("${rate-limit.general.requests-per-minute:60}") int generalRequestsPerMinute,
 			@Value("${rate-limit.openai.requests-per-minute:10}") int openAiRequestsPerMinute,
+			@Value("${rate-limit.auth-login.requests-per-minute:5}") int authLoginRequestsPerMinute,
+			@Value("${rate-limit.auth-register.requests-per-minute:3}") int authRegisterRequestsPerMinute,
 			RateLimitMetrics rateLimitMetrics) {
 		this.enabled = enabled;
 		this.generalRequestsPerMinute = generalRequestsPerMinute;
 		this.openAiRequestsPerMinute = openAiRequestsPerMinute;
+		this.authLoginRequestsPerMinute = authLoginRequestsPerMinute;
+		this.authRegisterRequestsPerMinute = authRegisterRequestsPerMinute;
 		this.rateLimitMetrics = rateLimitMetrics;
 	}
 
@@ -61,6 +69,10 @@ public class RateLimiterService {
 		return switch (tier) {
 			case GENERAL -> generalBuckets.computeIfAbsent(clientKey, key -> newBucket(generalRequestsPerMinute));
 			case OPENAI -> openAiBuckets.computeIfAbsent(clientKey, key -> newBucket(openAiRequestsPerMinute));
+			case AUTH_LOGIN ->
+					authLoginBuckets.computeIfAbsent(clientKey, key -> newBucket(authLoginRequestsPerMinute));
+			case AUTH_REGISTER ->
+					authRegisterBuckets.computeIfAbsent(clientKey, key -> newBucket(authRegisterRequestsPerMinute));
 		};
 	}
 

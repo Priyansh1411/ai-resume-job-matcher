@@ -40,6 +40,9 @@ public class SecurityConfiguration {
 						.requestMatchers("/api/health", "/api/database/health").permitAll()
 						.requestMatchers("/api/resumes/**").authenticated()
 						.anyRequest().permitAll())
+				.exceptionHandling(exceptions -> exceptions
+						.authenticationEntryPoint(new JsonAuthenticationEntryPoint())
+						.accessDeniedHandler(new JsonAccessDeniedHandler()))
 				.addFilterBefore(new JwtAuthenticationFilter(jwtService), UsernamePasswordAuthenticationFilter.class);
 
 		return http.build();
