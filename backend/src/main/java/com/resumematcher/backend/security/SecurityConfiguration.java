@@ -43,6 +43,15 @@ public class SecurityConfiguration {
 						.requestMatchers("/api/auth/logout").authenticated()
 						.requestMatchers("/api/health", "/api/database/health").permitAll()
 						.requestMatchers("/api/resumes/**").authenticated()
+						// /actuator/health is deliberately left to fall through to permitAll
+						// below (see application.properties) - only prometheus, which carries
+						// DB pool internals, per-route timing, and this app's own OpenAiMetrics/
+						// RateLimitMetrics/ResumeProcessingMetrics, needs a rule here. Reuses
+						// the same JWT scheme as /api/resumes/** rather than a dedicated
+						// credential: any authenticated app user (not just an operator) can
+						// read it, since the app has no role/authority concept yet - an
+						// accepted, documented tradeoff for this phase, not a gap closed here.
+						.requestMatchers("/actuator/prometheus").authenticated()
 						.anyRequest().permitAll())
 				.exceptionHandling(exceptions -> exceptions
 						.authenticationEntryPoint(new JsonAuthenticationEntryPoint())
