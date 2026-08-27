@@ -1,6 +1,6 @@
 # Stage 1: build the static assets using the project's own npm scripts -
 # no source changes, just `npm run build` (tsc -b && vite build) as-is
-FROM node:22-alpine AS build
+FROM node:25-alpine AS build
 WORKDIR /build
 COPY package.json package-lock.json ./
 RUN npm ci
