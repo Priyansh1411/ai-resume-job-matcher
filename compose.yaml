@@ -18,5 +18,53 @@ services:
       timeout: 5s
       retries: 5
 
+  backend:
+    build:
+      context: ./backend
+    container_name: resume-matcher-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      # Fixed by this compose topology, not operator-configurable - the
+      # backend reaches MySQL by service name over the compose network, not
+      # "localhost" (that default in application.properties is for running
+      # the backend directly on the host against a published MySQL port).
+      DB_HOST: mysql
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION_HOURS: ${JWT_EXPIRATION_HOURS:-24}
+      # Feature flags default off, same as application.properties - not
+      # enabled here, only passed through if already set in .env.
+      MATCHING_SEMANTIC_ENABLED: ${MATCHING_SEMANTIC_ENABLED:-false}
+      EMBEDDING_API_BASE_URL: ${EMBEDDING_API_BASE_URL:-}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      ANALYSIS_ENABLED: ${ANALYSIS_ENABLED:-false}
+      CHAT_API_BASE_URL: ${CHAT_API_BASE_URL:-}
+      CHAT_API_KEY: ${CHAT_API_KEY:-}
+      CHAT_API_MODEL: ${CHAT_API_MODEL:-gpt-4o-mini}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      RATE_LIMIT_GENERAL_RPM: ${RATE_LIMIT_GENERAL_RPM:-60}
+      RATE_LIMIT_OPENAI_RPM: ${RATE_LIMIT_OPENAI_RPM:-10}
+      RATE_LIMIT_AUTH_LOGIN_RPM: ${RATE_LIMIT_AUTH_LOGIN_RPM:-5}
+      RATE_LIMIT_AUTH_REGISTER_RPM: ${RATE_LIMIT_AUTH_REGISTER_RPM:-3}
+      RATE_LIMIT_AUTH_LOGIN_PER_ACCOUNT_RPM: ${RATE_LIMIT_AUTH_LOGIN_PER_ACCOUNT_RPM:-5}
+    # No published host port on purpose: nginx is the only browser-facing
+    # entry point, reaching this service over the internal compose network.
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: resume-matcher-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8081:80"
+
 volumes:
   mysql-data:
