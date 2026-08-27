@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      # Testcontainers-based tests need the Docker daemon already running on
+      # GitHub-hosted runners - no extra setup required for that. Test-only
+      # config (jwt.secret, rate-limit.enabled) comes from
+      # backend/src/test/resources/application-test.properties via the
+      # "test" Spring profile; nothing here supplies real credentials.
+      - name: Run backend tests
+        run: ./mvnw clean test
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Lint
+        run: npm run lint
+
+  docker:
+    name: Docker validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Validation only: config + build, no `up`, no login, no push. Compose
+      # will warn about unset variables (JWT_SECRET, MySQL credentials) since
+      # no .env file exists on the runner - harmless here, since building an
+      # image never needs a real secret, only starting a container would.
+      - name: Validate compose configuration
+        run: docker compose config
+
+      - name: Build images
+        run: docker compose build
