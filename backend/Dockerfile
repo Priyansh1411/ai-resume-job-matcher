@@ -12,7 +12,10 @@ RUN mvn -B package -DskipTests
 # All configuration (JWT_SECRET, DB credentials, provider keys) comes from
 # environment variables at container start, never baked into the image.
 FROM eclipse-temurin:21-jre-jammy
+RUN groupadd --gid 1000 spring \
+    && useradd --uid 1000 --gid spring --system --no-create-home --shell /usr/sbin/nologin spring
 WORKDIR /app
-COPY --from=build /build/target/backend-*.jar app.jar
+COPY --from=build --chown=spring:spring /build/target/backend-*.jar app.jar
+USER spring
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
