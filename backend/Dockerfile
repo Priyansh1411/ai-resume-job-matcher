@@ -11,7 +11,7 @@ RUN mvn -B package -DskipTests
 # Stage 2: run the jar on a JRE-only image - no JDK, no Maven, no source.
 # All configuration (JWT_SECRET, DB credentials, provider keys) comes from
 # environment variables at container start, never baked into the image.
-FROM eclipse-temurin:21-jre-jammy
+FROM eclipse-temurin:25-jre-jammy
 RUN groupadd --gid 1000 spring \
     && useradd --uid 1000 --gid spring --system --no-create-home --shell /usr/sbin/nologin spring
 WORKDIR /app
