@@ -1,7 +1,7 @@
 # Stage 1: build the Spring Boot fat jar. Tests are not run here (mvn test
 # already runs separately, and this project's integration tests need a Docker
 # socket for Testcontainers, which an image build stage doesn't reliably have)
-FROM maven:3.9-eclipse-temurin-21 AS build
+FROM maven:3.9-eclipse-temurin-26 AS build
 WORKDIR /build
 COPY pom.xml .
 RUN mvn -B dependency:go-offline
